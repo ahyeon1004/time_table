@@ -315,7 +315,7 @@ export function LessonPicker({ week, timetable, onChoose, onClose }) {
                 <strong>{subject.name}</strong>
                 <small>
                   {subject.teacher
-                    ? `${subject.teacher} 선생님`
+                    ? `${subject.teacher} 선생님${subject.teacherUnconfirmed ? " · 확인 필요" : ""}`
                     : "교사 정보 미제공"}
                 </small>
               </span>
@@ -335,6 +335,7 @@ export function LessonPicker({ week, timetable, onChoose, onClose }) {
   );
 }
 export function Notifications({
+  push,
   navigate,
   preferences,
   onChange,
@@ -379,7 +380,7 @@ export function Notifications({
             onClick={onPlay}
           >
             <Play size={17} weight={playing ? "fill" : "regular"} />
-            {playing ? "알림음 재생 중" : "알림음 미리 듣기"}
+            {playing ? "알림음 재생 중" : "동글동글 뽁뽁 · 미리 듣기"}
             <span className={playing ? "sound-bars playing" : "sound-bars"}>
               <i />
               <i />
@@ -391,6 +392,65 @@ export function Notifications({
             이 페이지가 열려 있는 동안 알림을 받을 수 있어요.
           </p>
         </div>
+        <section
+          className="notification-controls device-notification-controls"
+          aria-labelledby="device-notification-title"
+        >
+          <h2 id="device-notification-title">이 기기 알림</h2>
+          <p>시간표 창을 닫아도 수업 시작 5분 전에 맥 알림으로 알려드려요.</p>
+          <p className="notification-permission-help">
+            {!push.supported
+              ? "이 브라우저에서는 지원되지 않습니다. HTTPS 환경의 최신 Safari 또는 Chrome을 사용해 주세요."
+              : push.loading
+                ? "연결 확인 중…"
+                : !push.ready
+                  ? "알림 서버 설정을 준비 중입니다."
+                  : push.enabled
+                    ? "이 기기의 수업 알림이 켜져 있어요."
+                    : push.permission === "denied"
+                      ? "사이트 알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요."
+                      : "알림을 허용하면 이 기기로 수업 안내를 받을 수 있어요."}
+          </p>
+          <div className="device-notification-actions">
+            <Button
+              disabled={
+                !push.supported || !push.ready || push.loading || push.busy
+              }
+              onClick={() => {
+                if (push.enabled) void push.disable().catch(() => {});
+                else void push.enable();
+              }}
+            >
+              {push.busy
+                ? "처리 중…"
+                : push.enabled
+                  ? "이 기기 알림 끄기"
+                  : "이 기기 알림 켜기"}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!push.enabled || push.busy}
+              onClick={push.test}
+            >
+              테스트 알림 보내기
+            </Button>
+          </div>
+          {push.error && (
+            <p role="alert" className="notification-permission-help">
+              {push.error}
+            </p>
+          )}
+          {push.message && (
+            <p role="status" className="notification-permission-help">
+              {push.message}
+            </p>
+          )}
+          <p className="notification-permission-help">
+            알림 소리와 배너 표시는 맥 시스템 설정을 따릅니다. 로그아웃하면 이
+            기기의 알림이 중단되며, 로그인은 7일간 유지됩니다. 서버가 실행
+            중이어야 알림이 발송됩니다.
+          </p>
+        </section>
         <section className="notification-examples">
           <div className="section-title">
             <h2>알림 예시 미리보기</h2>

@@ -188,7 +188,7 @@ export function createTimetableMiddleware({
       pending.delete(id);
     }
   }
-  return async function timetableMiddleware(req, res, next) {
+  const middleware = async function timetableMiddleware(req, res, next) {
     const url = new URL(req.url, "http://localhost");
     if (url.pathname !== "/api/timetable") {
       if (next) return next();
@@ -228,18 +228,27 @@ export function createTimetableMiddleware({
     } catch (error) {
       const known = error instanceof TimetableError;
       if (!res.destroyed)
-        res
-          .writeHead(known ? error.status : 502)
-          .end(
-            JSON.stringify({
-              error: {
-                code: known ? error.code : "NEIS_UNAVAILABLE",
-                message: known
-                  ? error.message
-                  : "시간표 조회에 실패했습니다. 잠시 후 다시 시도해 주세요.",
-              },
-            }),
-          );
+        res.writeHead(known ? error.status : 502).end(
+          JSON.stringify({
+            error: {
+              code: known ? error.code : "NEIS_UNAVAILABLE",
+              message: known
+                ? error.message
+                : "시간표 조회에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+            },
+          }),
+        );
     }
   };
+  middleware.load = async (range) => {
+    const key = await getApiKey();
+    if (!key || key === "sample")
+      throw new TimetableError(
+        "NEIS_KEY_MISSING",
+        "시간표 인증키가 필요합니다.",
+        503,
+      );
+    return load(range, key, false);
+  };
+  return middleware;
 }

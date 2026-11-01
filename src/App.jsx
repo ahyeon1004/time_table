@@ -1,3 +1,4 @@
+import { useWebPush } from "./lib/useWebPush.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconContext } from "@phosphor-icons/react";
 import {
@@ -27,13 +28,6 @@ import {
 
 import { useTimetable } from "./lib/useTimetable.js";
 
-const validProfile = (value) =>
-  value &&
-  ["1", "2", "3"].includes(value.grade) &&
-  ["1", "2", "3", "4"].includes(value.classroom) &&
-  /^\d+$/.test(value.number) &&
-  Number(value.number) > 0 &&
-  Number.isSafeInteger(Number(value.number));
 const validPreferences = (value) =>
   value &&
   typeof value.screen === "boolean" &&
@@ -90,28 +84,32 @@ function usePersistent(key, initial, validate) {
 function readRoute() {
   return (window.location.hash.slice(1) || "/").split("?")[0];
 }
-export default function App() {
+function TimetableApp({ user, onUser, onSignOut }) {
   const [route, setRoute] = useState(readRoute);
-  const [profile, setProfile, profileError] = usePersistent(
-    "bssm.profile.v1",
-    null,
-    validProfile,
-  );
+  const [profile, setProfile] = useState(user?.profile ?? null);
+  const profileError = false;
   const [movements, setMovements, movementError] = usePersistent(
-    "bssm.movements.neis.v1",
+    `bssm.movements.neis.v1:${user?.id ?? "guest"}`,
     { recurring: {}, dates: {} },
     validMovements,
   );
   const [shortSettings, setShortSettings, shortError] = usePersistent(
-    "bssm.short.neis.v1",
+    `bssm.short.neis.v1:${user?.id ?? "guest"}`,
     {},
     validShortSettings,
   );
   const [preferences, setPreferences, prefError] = usePersistent(
-    "bssm.notifications.v1",
+    `bssm.notifications.v1:${user?.id ?? "guest"}`,
     { screen: true, sound: true },
     validPreferences,
   );
+  const push = useWebPush({
+    user,
+    profile,
+    movements,
+    shortSettings,
+    sound: preferences.sound,
+  });
   const [week, setWeek] = useState(() => mondayOf(new Date(), true));
   const [clock, setClock] = useState(() => new Date());
   const [previewTime, setPreviewTime] = useState(false);
@@ -119,7 +117,8 @@ export default function App() {
   const previousWeek = useRef(null);
   const now = previewTime && previewDate ? previewDate : clock;
   const dataEnabled =
-    Boolean(profile) && ["/dashboard", "/notifications"].includes(route);
+    Boolean(user && profile) &&
+    ["/dashboard", "/notifications"].includes(route);
   const operationalWeek = mondayOf(now, true);
   const live = useTimetable(profile, operationalWeek, dataEnabled);
   const sameWeek = dateKey(week) === dateKey(operationalWeek);
@@ -142,6 +141,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const soundTimer = useRef(null);
   const audioRef = useRef(null);
+  const audioBufferRef = useRef(null);
   const notified = useRef(new Set());
   const navigate = useCallback((path) => {
     window.location.hash = path;
@@ -196,28 +196,25 @@ export default function App() {
           if (!manual) return;
           await context.resume();
         }
-        [659.25, 880].forEach((frequency, index) => {
-          const oscillator = context.createOscillator();
-          const gain = context.createGain();
-          const start = context.currentTime + index * 0.19;
-          oscillator.type = "sine";
-          oscillator.frequency.value = frequency;
-          gain.gain.setValueAtTime(0, start);
-          gain.gain.linearRampToValueAtTime(0.07, start + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
-          oscillator.connect(gain);
-          gain.connect(context.destination);
-          oscillator.start(start);
-          oscillator.stop(start + 0.28);
-          oscillator.onended = () => {
-            oscillator.disconnect();
-            gain.disconnect();
-          };
-        });
+        if (!audioBufferRef.current) {
+          const response = await fetch("/sounds/round-pop.wav");
+          if (!response.ok) throw new Error("Audio could not be loaded");
+          audioBufferRef.current = await context.decodeAudioData(
+            await response.arrayBuffer(),
+          );
+        }
+        const source = context.createBufferSource();
+        source.buffer = audioBufferRef.current;
+        source.connect(context.destination);
+        source.onended = () => source.disconnect();
+        source.start();
         if (manual) {
           clearTimeout(soundTimer.current);
           setPlaying(true);
-          soundTimer.current = window.setTimeout(() => setPlaying(false), 700);
+          soundTimer.current = window.setTimeout(
+            () => setPlaying(false),
+            audioBufferRef.current.duration * 1000,
+          );
         }
       } catch {
         if (manual) showToast("이 브라우저에서는 알림음을 재생할 수 없어요.");
@@ -330,19 +327,33 @@ export default function App() {
     }
   }
   let page;
-  if (route === "/login" || route === "/signup")
+  if (!user && ["/profile", "/dashboard", "/notifications"].includes(route))
+    page = <Login navigate={navigate} />;
+  else if (route === "/login" || route === "/signup")
     page = <Login navigate={navigate} signup={route === "/signup"} />;
   else if (route === "/auth")
     page = <GoogleAuth navigate={navigate} profile={profile} />;
   else if (route === "/account-error")
     page = <AccountError navigate={navigate} />;
-  else if (route === "/profile" || (route === "/dashboard" && !profile))
+  else if (
+    route === "/profile" ||
+    (["/dashboard", "/notifications"].includes(route) && !profile)
+  )
     page = (
       <Profile
         profile={profile}
         navigate={navigate}
-        onComplete={(value) => {
-          setProfile(value);
+        onComplete={async (value) => {
+          const response = await fetch("/api/auth/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(value),
+          });
+          const body = await response.json();
+          if (!response.ok)
+            throw new Error(body.error?.message || "저장하지 못했습니다.");
+          onUser(body.user);
+          setProfile(body.user.profile);
           setPreviewTime(false);
           navigate("/dashboard");
           showToast("나의 시간표가 준비됐어요.");
@@ -363,10 +374,13 @@ export default function App() {
         movements={movements}
         navigate={navigate}
         onOpen={(type, selection) => setModal({ type, selection })}
-        onSignOut={() => {
-          navigate("/");
-          setPreviewTime(false);
-          showToast("로그아웃했어요.");
+        onSignOut={async () => {
+          try {
+            await onSignOut();
+            navigate("/");
+          } catch {
+            showToast("로그아웃하지 못했습니다. 다시 시도해 주세요.");
+          }
         }}
         previewTime={previewTime}
         onTogglePreview={togglePreview}
@@ -375,6 +389,7 @@ export default function App() {
   else if (route === "/notifications")
     page = (
       <Notifications
+        push={push}
         navigate={navigate}
         preferences={preferences}
         onChange={(value) => {
@@ -446,5 +461,59 @@ export default function App() {
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
     </IconContext.Provider>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState({
+    loading: true,
+    user: null,
+    error: false,
+  });
+  const load = useCallback(() => {
+    setSession((previous) => ({ ...previous, loading: true, error: false }));
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        const body = await response.json();
+        setSession({ loading: false, user: body.user, error: false });
+      })
+      .catch(() => setSession({ loading: false, user: null, error: true }));
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (session.loading)
+    return (
+      <main className="auth-page">
+        <section className="auth-content" role="status">
+          로그인 확인 중…
+        </section>
+      </main>
+    );
+  if (session.error)
+    return (
+      <main className="auth-page">
+        <section className="auth-content">
+          <p role="alert">서버에 연결하지 못했습니다.</p>
+          <button onClick={load}>다시 시도</button>
+        </section>
+      </main>
+    );
+  return (
+    <TimetableApp
+      key={session.user?.id ?? "guest"}
+      user={session.user}
+      onUser={(user) => setSession({ loading: false, user, error: false })}
+      onSignOut={async () => {
+        const response = await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok && response.status !== 401) throw new Error();
+        setSession({ loading: false, user: null, error: false });
+      }}
+    />
   );
 }

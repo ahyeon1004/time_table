@@ -4,9 +4,15 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTimetableMiddleware, readApiKey } from "./neis.js";
 
+import { createPushService } from "./push.js";
+import { createAuthMiddleware } from "./auth.js";
+
 const root = fileURLToPath(new URL("../", import.meta.url));
 const dist = resolve(root, "dist");
+const auth = createAuthMiddleware({ root });
 const api = createTimetableMiddleware({ getApiKey: () => readApiKey(root) });
+const push = createPushService({ root, loadTimetable: api.load });
+push.start();
 const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -17,6 +23,8 @@ const types = {
 };
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
+  if (url.pathname.startsWith("/api/push/")) return push.middleware(req, res);
+  if (url.pathname.startsWith("/api/auth/")) return auth(req, res);
   if (url.pathname.startsWith("/api/")) return api(req, res);
   if (!["GET", "HEAD"].includes(req.method)) {
     res.writeHead(405, { Allow: "GET, HEAD" }).end();

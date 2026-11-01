@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -85,55 +85,68 @@ export function Login({ signup = false, navigate }) {
     </AuthLayout>
   );
 }
-export function GoogleAuth({ navigate, profile }) {
-  const [loading, setLoading] = useState(false);
-  const timer = useRef(null);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  // The demo continues synchronously: there is no network request or real account selection.
-  const finish = () => {
-    setLoading(true);
-    timer.current = window.setTimeout(
-      () => navigate(profile ? "/dashboard" : "/profile"),
-      450,
-    );
+export function GoogleAuth({ navigate }) {
+  const [ready, setReady] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const error = new URLSearchParams(window.location.hash.split("?")[1]).get(
+    "error",
+  );
+  const messages = {
+    cancelled: "Google 로그인을 취소했습니다. 다시 시도할 수 있어요.",
+    invalid: "인증 요청이 만료되었습니다. 다시 시작해 주세요.",
+    failed: "Google 인증을 완료하지 못했습니다. 다시 시도해 주세요.",
   };
+  function check() {
+    setChecking(true);
+    fetch("/api/auth/config", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        setReady((await response.json()).ready);
+      })
+      .catch(() => setReady(false))
+      .finally(() => setChecking(false));
+  }
+  useEffect(check, []);
   return (
     <AuthLayout navigate={navigate} back="/login">
       <header className="auth-heading">
         <span className="auth-icon">
           <ShieldCheck size={27} />
         </span>
-        <h1>Google 인증 안내</h1>
-        <p>학교 Google 계정으로 계속해 주세요.</p>
+        <h1>학교 계정으로 시작하기</h1>
+        <p>bssm.hs.kr Google 계정으로 계속해 주세요.</p>
       </header>
-      <div className="demo-notice">
-        <span className="tiny-label">UI 시연 모드</span>
-        <p>
-          현재는 실제 Google 인증을 진행하지 않습니다.
-          <br />
-          계속하기를 누르면 {profile ? "시간표로" : "학생 정보 등록으로"}{" "}
-          이동해요.
+      {messages[error] && (
+        <p className="account-error-message" role="alert">
+          {messages[error]}
         </p>
-      </div>
-      <Button onClick={finish} disabled={loading}>
-        {loading ? (
-          <span className="button-loading">
-            <span />
-            계속하는 중
-          </span>
-        ) : (
-          <>
-            학교 계정으로 계속하기
-            <ArrowRight size={17} />
-          </>
-        )}
-      </Button>
-      <button
-        className="text-action auth-error-action"
-        onClick={() => navigate("/account-error")}
+      )}
+      {!checking && !ready && (
+        <div className="demo-notice" role="status">
+          <p>
+            학교 계정 로그인 준비 중입니다.
+            <br />
+            설정이 완료되면 이용할 수 있어요.
+          </p>
+        </div>
+      )}
+      <Button
+        disabled={checking || !ready}
+        onClick={() => window.location.assign("/api/auth/google")}
       >
-        학교 계정이 아닌 경우 보기
-      </button>
+        <GoogleLogo />
+        {checking ? "연결 확인 중" : "Google 계정 선택"}
+      </Button>
+      {!checking && !ready && (
+        <button className="text-action" onClick={check}>
+          다시 확인
+        </button>
+      )}
+      <p className="school-help">
+        이메일과 기본 프로필만 확인합니다.
+        <br />
+        비밀번호는 이 서비스에 저장하지 않습니다.
+      </p>
     </AuthLayout>
   );
 }
@@ -169,20 +182,33 @@ export function Profile({ navigate, onComplete, profile }) {
   const [classroom, setClassroom] = useState(profile?.classroom ?? "");
   const [number, setNumber] = useState(profile?.number ?? "");
   const [errors, setErrors] = useState({});
-  function submit(event) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  async function submit(event) {
     event.preventDefault();
     const next = {};
     if (!grade) next.grade = "학년을 선택해 주세요.";
     if (!classroom) next.classroom = "반을 선택해 주세요.";
     if (
-      !/^\d+$/.test(String(number)) ||
+      !/^\d{1,3}$/.test(String(number)) ||
       Number(number) < 1 ||
       !Number.isSafeInteger(Number(number))
     )
       next.number = "1 이상의 올바른 번호를 입력해 주세요.";
     setErrors(next);
-    if (!Object.keys(next).length)
-      onComplete({ grade, classroom, number: String(Number(number)) });
+    if (!Object.keys(next).length) {
+      setSaving(true);
+      setSaveError("");
+      try {
+        await onComplete({ grade, classroom, number: String(Number(number)) });
+      } catch (error) {
+        setSaveError(
+          error.message || "저장하지 못했습니다. 다시 시도해 주세요.",
+        );
+      } finally {
+        setSaving(false);
+      }
+    }
   }
   return (
     <AuthLayout navigate={navigate} back="/login">
@@ -249,8 +275,9 @@ export function Profile({ navigate, onComplete, profile }) {
             onChange={(e) => setNumber(e.target.value)}
           />
         </Field>
-        <Button type="submit" className="profile-submit">
-          시작하기
+        <p role="alert">{saveError}</p>
+        <Button type="submit" className="profile-submit" disabled={saving}>
+          {saving ? "저장 중" : "시작하기"}
           <ArrowRight size={17} />
         </Button>
       </form>

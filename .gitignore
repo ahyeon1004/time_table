@@ -10,3 +10,12 @@ dist/
 # Local development caches and logs
 .vite/
 *.log
+
+# Private authentication database
+.data/
+
+# Local Cloudflare state and secrets
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

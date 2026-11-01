@@ -8,18 +8,30 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test src/lib/*.test.js server/*.test.js",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "edge:dev": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "edge:check": "wrangler deploy --dry-run",
+    "edge:migrate:local": "wrangler d1 migrations apply DB --local",
+    "edge:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "edge:deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "google-auth-library": "^11.3.2",
+    "jose": "^6.2.15",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "wrangler": "^4.156.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

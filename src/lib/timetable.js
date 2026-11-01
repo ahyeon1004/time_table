@@ -1,4 +1,6 @@
+import { isUnconfirmedTeacher } from "./thirdGradeTeachers.js";
 import { dateKey, parseDate } from "./schedule.js";
+import { lessonLabel, lessonTeacher } from "./lessonLabels.js";
 const COLORS = [
   "blue",
   "mint",
@@ -47,12 +49,39 @@ export function normalizeTimetable(payload, { grade, classroom, week }) {
     const names = [
       ...new Set([...(previous?.subjects ?? []), row.content.trim()]),
     ];
-    const name = names.join(" / ");
+    const sourceName = names.join(" / ");
+    const displayNames = [
+      ...new Set(
+        names.map((subject) => lessonLabel(subject, grade, classroom)),
+      ),
+    ];
+    const name = displayNames.join(" / ");
+    const teachers = names.map((subject) =>
+      lessonTeacher(lessonLabel(subject, grade, classroom), {
+        sourceName: subject,
+        grade,
+        classroom,
+        day,
+        period: row.period,
+      }),
+    );
+    const teacher = teachers.every(Boolean)
+      ? [...new Set(teachers)].join(" / ")
+      : null;
     periods[row.period - 1] = {
       name,
+      sourceName,
+      isChanged: names.some((subject) =>
+        /\[(?:보강|변경|대체)\]/.test(subject),
+      ),
       subjects: names,
-      color: subjectColor(names[0]),
-      teacher: null,
+      color: subjectColor(displayNames[0]),
+      teacher,
+      teacherSource: teacher ? "사용자 제공" : null,
+      teacherUnconfirmed:
+        Boolean(teacher) &&
+        String(grade) === "3" &&
+        names.some((subject) => isUnconfirmedTeacher(subject, classroom)),
       room: "",
       source: "NEIS",
     };

@@ -2062,3 +2062,23 @@ button[disabled] {
     opacity: 0.35;
   }
 }
+
+.device-notification-controls {
+  margin-top: 24px;
+}
+.device-notification-controls > h2 {
+  font-size: 18px;
+  color: #34465f;
+}
+.device-notification-controls > p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.device-notification-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.device-notification-actions > button {
+  flex: 1;
+}

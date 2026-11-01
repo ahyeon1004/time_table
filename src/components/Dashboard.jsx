@@ -448,7 +448,7 @@ export default function Dashboard({
                           <div className="lesson-card-bottom">
                             <span>
                               {subject.teacher
-                                ? `${subject.teacher} 선생님`
+                                ? `${subject.teacher} 선생님${subject.teacherUnconfirmed ? " · 확인 필요" : ""}`
                                 : "교사 정보 미제공"}
                             </span>
                             {current && (
@@ -475,8 +475,8 @@ export default function Dashboard({
         <footer className="timetable-footer">
           <p>
             <Info size={14} />
-            과목은 나이스 공개 자료입니다. 교사명은 제공되지 않으며, 수업 시각은
-            기본 설정입니다.
+            과목은 나이스 공개 자료, 교사명은 사용자 제공 정보입니다. 수업
+            시각은 기본 설정입니다.
             {Object.keys(shortSettings).some((key) =>
               dates.some((date) => dateKey(date) === key),
             ) && " 단축 시간은 해당 날짜의 카드에 표시됩니다."}

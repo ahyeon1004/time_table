@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bssm-timetable",
+  "main": "edge/worker.js",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "build": {
+    "command": "npm run build",
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bssm-timetable",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "triggers": {
+    "crons": ["* * * * *"],
+  },
+  "vars": {
+    "GOOGLE_ALLOWED_DOMAINS": "bssm.hs.kr",
+  },
+  "observability": {
+    "enabled": false,
+  },
+}
