@@ -1,3 +1,4 @@
+import InstallApp from "./InstallApp.jsx";
 import { useEffect, useState } from "react";
 import {
   ArrowsClockwise,
@@ -179,6 +180,7 @@ export default function Dashboard({
               <CaretRight size={13} />
             </button>
           </nav>
+          <InstallApp />
           <div className="sidebar-note">
             <span className="small-blue-dot" />
             <p>

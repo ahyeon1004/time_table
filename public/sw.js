@@ -1,3 +1,6 @@
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
 self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
@@ -17,7 +20,7 @@ self.addEventListener("push", (event) => {
             : typeof data.body === "string"
               ? data.body
               : "",
-          icon: "/favicon.svg",
+          icon: "/icons/icon-192.png",
           tag: data.tag || "bssm",
           silent: !!data.silent,
           data: {

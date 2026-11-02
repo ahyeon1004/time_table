@@ -2082,3 +2082,7 @@ button[disabled] {
 .device-notification-actions > button {
   flex: 1;
 }
+
+.app-install { margin-top: 18px; }
+.app-install > button { width: 100%; }
+.app-install > p { font-size: 12px; color: #a34444; line-height: 1.6; margin-top: 8px; }
