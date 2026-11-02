@@ -147,3 +147,20 @@ Node 서버(또는 개발/preview 서버)의 스케줄러가 30초마다 한국 
 로컬 Workers 검증: `.dev.vars.example`을 `.dev.vars`로 복사하고 로컬 비밀값을 채운 뒤 `npm run edge:migrate:local`, `npm run edge:dev`를 실행합니다. `.dev.vars`와 `.wrangler`는 Git 제외 대상입니다. `npm run edge:check`는 원격 배포 없이 번들만 검증합니다.
 
 GitHub Actions의 `Check timetable`은 테스트와 배포 번들을 검증합니다. 실제 배포는 Cloudflare의 GitHub 연결에서 수행하므로 GitHub Actions에 Cloudflare 비밀 토큰을 추가할 필요가 없습니다. 각 서비스의 무료 사용량 및 권한 범위는 해당 계정에서 확인합니다.
+
+## Vercel 배포
+
+Vite 정적 화면과 `api/index.js`의 Node.js 24 API를 함께 배포합니다.
+GitHub 저장소를 기존 `bssm-timetable` 프로젝트에 연결하고 Neon Free 데이터베이스를 Storage에서 연결하세요.
+`DATABASE_URL`은 비공개 서버 환경변수이며 브라우저용 `VITE_` 접두어를 붙이지 않습니다.
+`APP_ORIGIN`은 운영 URL, Google 승인 리디렉션 URI는 해당 URL의 `/api/auth/callback`으로 등록합니다.
+기존 Google/나이스 환경변수 및 VAPID 키도 비공개 서버 환경변수에 등록합니다.
+운영 DB 연결을 확인한 뒤 `npm run vercel:db:migrate`를 한 번 실행하세요.
+마이그레이션은 테이블과 인덱스를 생성하며 기존 데이터를 삭제하지 않습니다. 로컬 SQLite 개인정보 DB는 업로드하지 않습니다.
+
+Vercel Hobby의 자체 Cron은 하루 한 번만 가능하므로 수업 5분 전 알림 스케줄러로 사용할 수 없습니다.
+별도의 분 단위 호출자가 연결되기 전에는 `PUSH_SCHEDULER_ENABLED=false`를 유지하며 UI에도 자동 알림 준비 중 상태를 표시합니다.
+테스트 푸시는 기기 연결과 서버 키 등록 후 사용할 수 있습니다.
+호출자를 마련한 뒤에만 `PUSH_SCHEDULER_ENABLED=true`로 설정합니다. 호출 경로는 `GET` 또는 `POST /api/push/dispatch`이며
+`Authorization: Bearer <CRON_SECRET>`가 필수입니다. 비밀키를 URL 쿼리에 넣지 않습니다.
+호출 실패·중복 발송 처리는 공통 푸시 서비스와 영구 DB의 발송 기록을 사용합니다.

@@ -19,3 +19,6 @@ dist/
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+
+# Vercel local project and credentials
+.vercel/

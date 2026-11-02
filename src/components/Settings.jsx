@@ -397,7 +397,9 @@ export function Notifications({
           aria-labelledby="device-notification-title"
         >
           <h2 id="device-notification-title">이 기기 알림</h2>
-          <p>시간표 창을 닫아도 수업 시작 5분 전에 맥 알림으로 알려드려요.</p>
+          <p>{push.schedulingReady === false
+            ? "자동 수업 알림을 준비 중입니다. 기기를 연결하면 테스트 알림을 받을 수 있어요."
+            : "시간표 창을 닫아도 수업 시작 5분 전에 맥 알림으로 알려드려요."}</p>
           <p className="notification-permission-help">
             {!push.supported
               ? "이 브라우저에서는 지원되지 않습니다. HTTPS 환경의 최신 Safari 또는 Chrome을 사용해 주세요."
@@ -406,7 +408,7 @@ export function Notifications({
                 : !push.ready
                   ? "알림 서버 설정을 준비 중입니다."
                   : push.enabled
-                    ? "이 기기의 수업 알림이 켜져 있어요."
+                    ? (push.schedulingReady === false ? "기기가 연결됐어요. 자동 수업 알림은 아직 준비 중입니다." : "이 기기의 수업 알림이 켜져 있어요.")
                     : push.permission === "denied"
                       ? "사이트 알림이 차단되어 있어요. 브라우저 설정에서 허용해 주세요."
                       : "알림을 허용하면 이 기기로 수업 안내를 받을 수 있어요."}
