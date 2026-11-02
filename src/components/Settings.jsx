@@ -449,7 +449,7 @@ export function Notifications({
           )}
           <p className="notification-permission-help">
             알림 소리와 배너 표시는 맥 시스템 설정을 따릅니다. 로그아웃하면 이
-            기기의 알림이 중단되며, 로그인은 7일간 유지됩니다. 서버가 실행
+            기기의 알림이 중단되며, 로그인은 접속할 때마다 90일씩 자동 연장됩니다. 서버가 실행
             중이어야 알림이 발송됩니다.
           </p>
         </section>

@@ -69,6 +69,11 @@ export function createAuthStore(path) {
           }
         : null;
     },
+    renew(token, expires) {
+      if (!token) return false;
+      return db.prepare("UPDATE sessions SET expires=? WHERE token=? AND expires>?")
+        .run(expires, digest(token), Date.now()).changes > 0;
+    },
     profile(id, value) {
       db.prepare("UPDATE users SET profile=? WHERE id=?").run(
         JSON.stringify(value),

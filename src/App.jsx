@@ -483,6 +483,33 @@ export default function App() {
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => {
+    const userId = session.user?.id;
+    if (!userId) return;
+    let active = true, busy = false, checked = Date.now();
+    async function renew() {
+      if (document.visibilityState === "hidden" || busy || Date.now() - checked < 3600_000) return;
+      busy = true;
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = await response.json();
+        checked = Date.now();
+        if (active) setSession(previous => previous.user?.id === userId
+          ? { loading: false, user: body.user, error: false } : previous);
+      } catch { /* Temporary network failures must not sign the user out. */ }
+      finally { busy = false; }
+    }
+    window.addEventListener("focus", renew);
+    document.addEventListener("visibilitychange", renew);
+    const timer = setInterval(renew, 6 * 3600_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", renew);
+      document.removeEventListener("visibilitychange", renew);
+    };
+  }, [session.user?.id]);
   if (session.loading)
     return (
       <main className="auth-page">

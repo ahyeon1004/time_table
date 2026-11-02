@@ -1,3 +1,4 @@
+import { SESSION_MAX_AGE, sessionExpires } from "../server/session.js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { randomBytes, createHash } from "node:crypto";
 const jwks = createRemoteJWKSet(
@@ -98,10 +99,14 @@ export async function handleAuth(
     method = request.method;
   if (url.pathname === "/api/auth/config" && method === "GET")
     return json(200, { ready: config.ready });
-  if (url.pathname === "/api/auth/session" && method === "GET")
-    return json(200, {
-      user: config.ready ? await store.user(cookies.bssm_session) : null,
-    });
+  if (url.pathname === "/api/auth/session" && method === "GET") {
+    const token = cookies.bssm_session;
+    const renewed = config.ready && await store.renew(token, sessionExpires());
+    const user = renewed ? await store.user(token) : null;
+    const response = json(200, { user });
+    if (user) response.headers.append("Set-Cookie", cookie("bssm_session", token, SESSION_MAX_AGE, config.secure));
+    return response;
+  }
   if (!config.ready)
     return json(503, {
       error: { message: "Google 로그인 설정을 준비 중입니다." },
@@ -190,13 +195,13 @@ export async function handleAuth(
       await store.login(
         claims,
         token,
-        Date.now() + 7 * 86400_000,
+        sessionExpires(),
         cookies.bssm_session,
       );
       const user = await store.user(token);
       return redirect(user.profile ? "/#/dashboard" : "/#/profile", [
         ...cleared,
-        cookie("bssm_session", token, 7 * 86400, config.secure),
+        cookie("bssm_session", token, SESSION_MAX_AGE, config.secure),
       ]);
     } catch {
       return redirect("/#/auth?error=failed", cleared);

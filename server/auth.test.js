@@ -264,3 +264,29 @@ test("학생 정보를 계정에 저장하고 재로그인 시 복원하며 로�
     null,
   );
 });
+
+test("접속 시 90일 연장하며 기존 7일 로그인도 유지하고 만료·로그아웃 세션은 되살리지 않는다", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-02T00:00:00Z") });
+  const f = fixture();
+  t.after(() => f.store.close());
+  f.store.login(claims, "existing", Date.now() + 7 * 86400_000);
+  const visit = () => f.request("/api/auth/session", { cookie: "bssm_session=existing" });
+  let response = await visit();
+  assert.equal(JSON.parse(response.body).user.id, claims.sub);
+  assert.match(response.headers["set-cookie"], /Max-Age=7776000/);
+  assert.match(response.headers["set-cookie"], /HttpOnly/);
+  t.mock.timers.tick(8 * 86400_000);
+  response = await visit();
+  assert.equal(JSON.parse(response.body).user.id, claims.sub);
+  t.mock.timers.tick(89 * 86400_000);
+  assert.equal(JSON.parse((await visit()).body).user.id, claims.sub);
+  t.mock.timers.tick(91 * 86400_000);
+  response = await visit();
+  assert.equal(JSON.parse(response.body).user, null);
+  assert.equal(response.headers["set-cookie"], undefined);
+  f.store.login(claims, "new", Date.now() + 86400_000);
+  await f.request("/api/auth/logout", { method: "POST", cookie: "bssm_session=new" });
+  response = await f.request("/api/auth/session", { cookie: "bssm_session=new" });
+  assert.equal(JSON.parse(response.body).user, null);
+  assert.equal(response.headers["set-cookie"], undefined);
+});

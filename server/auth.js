@@ -1,3 +1,4 @@
+import { SESSION_MAX_AGE, sessionExpires } from "./session.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -123,10 +124,13 @@ export function createAuthMiddleware({
       const method = req.method;
       if (url.pathname === "/api/auth/config" && method === "GET")
         return json(res, 200, { ready: config.ready });
-      if (url.pathname === "/api/auth/session" && method === "GET")
-        return json(res, 200, {
-          user: config.ready ? store().user(cookies(req).bssm_session) : null,
-        });
+      if (url.pathname === "/api/auth/session" && method === "GET") {
+        const token = cookies(req).bssm_session;
+        const renewed = config.ready && store().renew(token, sessionExpires());
+        const user = renewed ? store().user(token) : null;
+        if (user) res.setHeader("Set-Cookie", cookie("bssm_session", token, SESSION_MAX_AGE, secure));
+        return json(res, 200, { user });
+      }
       if (!config.ready)
         return fail(503, "Google 로그인 설정이 아직 완료되지 않았습니다.");
       const jar = cookies(req);
@@ -183,12 +187,12 @@ export function createAuthMiddleware({
           store().login(
             claims,
             token,
-            Date.now() + 7 * 86400_000,
+            sessionExpires(),
             jar.bssm_session,
           );
           res.setHeader("Set-Cookie", [
             cookie("bssm_oauth", "", 0, secure),
-            cookie("bssm_session", token, 7 * 86400, secure),
+            cookie("bssm_session", token, SESSION_MAX_AGE, secure),
           ]);
           return redirect(
             store().user(token).profile ? "/#/dashboard" : "/#/profile",

@@ -75,6 +75,13 @@ export function edgeStore(db) {
           )
         : null;
     },
+    async renew(token, expires) {
+      if (!token) return false;
+      return !!(await first(
+        "UPDATE sessions SET expires=? WHERE token=? AND expires>? RETURNING token",
+        expires, hash(token), Date.now(),
+      ));
+    },
     async profile(id, value) {
       await run(
         "UPDATE users SET profile=? WHERE id=?",

@@ -193,3 +193,29 @@ test("Workers는 정적 화면·준비 상태·잘못된 API 요청을 구분하
   const body = await response.text();
   assert.ok(!body.includes(env.GOOGLE_CLIENT_SECRET));
 });
+
+test("배포 API도 DB와 보안 쿠키를 90일씩 갱신하고 만료·폐기된 세션은 갱신하지 않는다", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-02T00:00:00Z") });
+  const { store, env } = await fixture(t);
+  await store.login({sub:"student", email:"student@bssm.hs.kr"}, "existing", Date.now() + 7 * 86400_000);
+  const visit = (token="existing") => handleAuth(new Request(env.APP_ORIGIN + "/api/auth/session", {
+    headers: {cookie: "bssm_session=" + token},
+  }), env, store);
+  let response = await visit();
+  assert.equal((await response.json()).user.id, "student");
+  assert.match(response.headers.get("set-cookie"), /Max-Age=7776000/);
+  assert.match(response.headers.get("set-cookie"), /HttpOnly; SameSite=Lax.*Secure/);
+  t.mock.timers.tick(8 * 86400_000);
+  response = await visit();
+  assert.equal((await response.json()).user.id, "student");
+  t.mock.timers.tick(91 * 86400_000);
+  response = await visit();
+  assert.equal((await response.json()).user, null);
+  assert.equal(response.headers.get("set-cookie"), null);
+  await store.login({sub:"student", email:"student@bssm.hs.kr"}, "new", Date.now() + 86400_000);
+  await store.logout("new");
+  response = await visit("new");
+  assert.equal((await response.json()).user, null);
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.equal(await store.renew("forged", Date.now() + 7776000_000), false);
+});
