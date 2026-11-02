@@ -1,3 +1,4 @@
+import { resumeRoute } from "./lib/resumeRoute.js";
 import { useWebPush } from "./lib/useWebPush.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconContext } from "@phosphor-icons/react";
@@ -85,7 +86,8 @@ function readRoute() {
   return (window.location.hash.slice(1) || "/").split("?")[0];
 }
 function TimetableApp({ user, onUser, onSignOut }) {
-  const [route, setRoute] = useState(readRoute);
+  const [requestedRoute, setRoute] = useState(readRoute);
+  const route = resumeRoute(requestedRoute, user);
   const [profile, setProfile] = useState(user?.profile ?? null);
   const profileError = false;
   const [movements, setMovements, movementError] = usePersistent(
