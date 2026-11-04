@@ -343,46 +343,6 @@ export function Notifications({
   onPlay,
   playing,
 }) {
-  const [systemTestBusy, setSystemTestBusy] = useState(false);
-  const [systemTestMessage, setSystemTestMessage] = useState("");
-  const [systemTestError, setSystemTestError] = useState(false);
-  async function testNotification() {
-    if (systemTestBusy) return;
-    setSystemTestBusy(true);
-    setSystemTestMessage("");
-    setSystemTestError(false);
-    let timer;
-    try {
-      if (!window.isSecureContext || !("Notification" in window) || !("serviceWorker" in navigator))
-        throw new Error("HTTPS 환경의 최신 Chrome 또는 Safari에서 실행해 주세요.");
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted")
-        throw new Error("사이트와 맥 시스템 설정에서 시간표 앱의 알림을 허용해 주세요.");
-      await navigator.serviceWorker.register("/sw.js", {
-        scope: "/", updateViaCache: "none",
-      });
-      const registration = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error("알림 연결 준비가 지연됩니다. 새로고침 후 다시 시도해 주세요.")), 20000);
-        }),
-      ]);
-      await registration.showNotification("시간표", {
-        body: "다음 수업은 수학입니다. 5분 남았어요!",
-        icon: "/icons/icon-192.png",
-        tag: "bssm-local-test",
-        silent: !preferences.sound,
-        data: { url: "/#/dashboard" },
-      });
-      setSystemTestMessage("시스템 알림 표시를 요청했어요. 배너가 안 보이면 맥 시스템 설정 → 알림에서 확인해 주세요.");
-    } catch (error) {
-      setSystemTestError(true);
-      setSystemTestMessage(error.message || "시스템 알림을 표시하지 못했습니다.");
-    } finally {
-      clearTimeout(timer);
-      setSystemTestBusy(false);
-    }
-  }
   return (
     <main className="notifications-page">
       <header className="settings-topbar">
@@ -477,22 +437,6 @@ export function Notifications({
               테스트 알림 보내기
             </Button>
           </div>
-          <Button
-            variant="secondary"
-            className="sound-preview"
-            disabled={systemTestBusy}
-            onClick={testNotification}
-          >
-            {systemTestBusy ? "시스템 알림 준비 중…" : "설치 앱에서 시스템 알림 테스트"}
-          </Button>
-          <p className="notification-permission-help">
-            설치한 시간표 앱에서 눌러 주세요. 서버 연결 없이 맥 시스템 알림을 테스트합니다.
-          </p>
-          {systemTestMessage && (
-            <p role={systemTestError ? "alert" : "status"} className="notification-permission-help">
-              {systemTestMessage}
-            </p>
-          )}
           {push.error && (
             <p role="alert" className="notification-permission-help">
               {push.error}

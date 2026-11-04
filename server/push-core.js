@@ -173,13 +173,15 @@ export function createPushService({
     if (running) return;
     running = true;
     const startedAt = Date.now();
+    const result = { devices: 0, sent: 0, failed: 0 };
     try {
       const config = await getConfig();
       if (!config.ready) return;
       const clock = seoulClock(now);
       if (clock.day >= 5 || clock.minute < 7 * 60 || clock.minute > 20 * 60)
-        return;
+        return result;
       const devices = await store().pushDevices();
+      result.devices = devices.length;
       const classes = new Map();
       for (const device of devices) {
         try {
@@ -222,6 +224,8 @@ export function createPushService({
             )
               continue;
             const success = await deliver(device, item.payload, config);
+            if (success) result.sent++;
+            else result.failed++;
             await store().finishPush(
               device.endpoint,
               item.key,
@@ -230,9 +234,11 @@ export function createPushService({
             );
           }
         } catch {
+          result.failed++;
           /* 재시도 시 최신 시간표만 사용한다. 과목을 추측해 보내지 않는다. */
         }
       }
+      return result;
     } finally {
       running = false;
     }
@@ -338,7 +344,9 @@ export function createPushService({
           device,
           {
             title: "시간표 알림이 연결됐어요.",
-            body: "수업 시작 5분 전에 이 기기로 알려드릴게요.",
+            body: config.schedulingReady === false
+              ? "테스트 알림입니다. 자동 수업 알림 연결을 준비 중입니다."
+              : "수업 시작 5분 전에 이 기기로 알려드릴게요.",
             tag: "bssm-test",
             url: "/#/notifications",
             silent: !device.settings.sound,

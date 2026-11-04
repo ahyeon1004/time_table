@@ -1,10 +1,14 @@
 import { neon } from "@neondatabase/serverless";
 import worker from "../edge/worker.js";
 import { environment as services } from "../edge/worker.js";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { authorizedScheduler, createScheduler } from "../server/scheduler.js";
 import { postgresDatabase } from "../server/postgres.js";
 
-let configured;
+let configured, scheduler;
+function schedulerFor(env) {
+  scheduler ??= createScheduler({ db: env.DB, dispatch: () => services(env).push.tick() });
+  return scheduler;
+}
 function environment() {
   if (!configured) configured = {
     ...process.env,
@@ -23,18 +27,17 @@ export default {
       });
     const env = environment();
     const path = new URL(request.url).pathname;
-    if (path === "/api/push/dispatch") {
-      const digest = (s) => createHash("sha256").update(s).digest();
-      if (!env.CRON_SECRET || !timingSafeEqual(
-        digest(request.headers.get("authorization") || ""),
-        digest(`Bearer ${env.CRON_SECRET}`),
-      )) return new Response("Unauthorized", { status: 401 });
+    if (["/api/push/dispatch", "/api/push/scheduler"].includes(path)) {
+      if (!authorizedScheduler(request, env.CRON_SECRET))
+        return new Response("Unauthorized", { status: 401 });
       if (request.method !== "POST" && request.method !== "GET")
         return new Response("Method not allowed", { status: 405 });
       try {
-        await services(env).push.tick();
+        if (path.endsWith("/scheduler"))
+          return Response.json(await schedulerFor(env).status(), { headers: { "Cache-Control": "no-store" } });
+        const result = await schedulerFor(env).run();
         await services(env).store.cleanup();
-        return Response.json({ ok: true });
+        return Response.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
       } catch {
         console.error("Scheduled notification dispatch failed");
         return Response.json({ error: "일정 알림을 처리하지 못했습니다." }, { status: 503 });
@@ -42,8 +45,10 @@ export default {
     }
     const response = await worker.fetch(request, env);
     if (path === "/api/push/config" && response.ok) {
+      const status = env.DB ? await schedulerFor(env).status() : null;
       return Response.json({ ...await response.json(),
-        schedulingReady: env.PUSH_SCHEDULER_ENABLED === "true",
+        schedulingReady: env.PUSH_SCHEDULER_ENABLED === "true" && !!status?.lastSuccessAt,
+        schedulerLastSuccessAt: status?.lastSuccessAt ?? null,
       }, { headers: { "Cache-Control": "no-store" } });
     }
     return response;

@@ -58,6 +58,7 @@ export function environment(env) {
           env.WEB_PUSH_PRIVATE_KEY &&
           env.WEB_PUSH_SUBJECT
         ),
+        schedulingReady: env.PUSH_SCHEDULER_ENABLED !== "false",
         publicKey: env.WEB_PUSH_PUBLIC_KEY,
         privateKey: env.WEB_PUSH_PRIVATE_KEY,
         subject: env.WEB_PUSH_SUBJECT,

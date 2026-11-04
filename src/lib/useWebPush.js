@@ -158,7 +158,9 @@ export function useWebPush({ user, profile, movements, shortSettings, sound }) {
         enabled: true,
         permission: "granted",
         error: "",
-        message: "이 기기의 수업 알림을 켰어요.",
+        message: config.schedulingReady === false
+          ? "기기를 연결했어요. 자동 수업 알림은 아직 준비 중입니다."
+          : "이 기기의 수업 알림을 켰어요.",
       }));
     } catch (error) {
       setState((s) => ({
