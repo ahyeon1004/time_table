@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>시간표 · BSSM</title>
+    <item>
+      <title>시간표 1.0.2</title>
+      <pubDate>Fri, 06 Nov 2026 19:33:34 +0000</pubDate>
+      <description>학교 계정 시간표 위젯 및 자동 업데이트 개선</description>
+      <sparkle:version>3</sparkle:version>
+      <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/ahyeon1004/time_table/releases/download/macos-widget-v1.0.2-beta.1/BSSMTimetable-update.zip" length="3971361" type="application/octet-stream" sparkle:edSignature="YzUSICVe03ra5xCq257qNZBdK/ZwR9eQMOErrdud1y21pz74+wn1y93D4xVrPcevvtbyQrGbMYFg5Ghl4BIKDA=="></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: wSbZm2seVQonrnnDShA0qrwHQmyGYE1+xmeWCfdyY5TYiJpEZdgoIDmVEwNTwgw7a5yetBmueIDWPH1Ix07VCg==
+length: 1150
+-->
