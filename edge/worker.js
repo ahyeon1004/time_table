@@ -1,3 +1,4 @@
+import { createWidgetMiddleware } from "../server/widget.js";
 import webpush from "web-push";
 import { edgeStore } from "./store.js";
 import { authConfig, handleAuth, json } from "./auth.js";
@@ -152,6 +153,8 @@ export default {
         return await handleAuth(request, env, services.store);
       if (url.pathname.startsWith("/api/push/"))
         return await bridge(request, services.push.middleware);
+      if (url.pathname === "/api/widget")
+        return await bridge(request, createWidgetMiddleware({ loadTimetable: services.load }));
       if (url.pathname === "/api/timetable") {
         if (request.method !== "GET")
           return json(405, { error: { message: "GET 요청만 지원합니다." } });
