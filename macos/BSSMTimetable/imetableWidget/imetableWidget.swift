@@ -1,24 +1,13 @@
+import CryptoKit
 import CoreText
 import WidgetKit
 import SwiftUI
 import AppIntents
 
-enum GradeOption: String, AppEnum {
-    case first = "1", second = "2", third = "3"
-    static var typeDisplayRepresentation: TypeDisplayRepresentation { "학년" }
-    static var caseDisplayRepresentations: [GradeOption: DisplayRepresentation] { [.first: "1학년", .second: "2학년", .third: "3학년"] }
-}
-enum ClassOption: String, AppEnum {
-    case one = "1", two = "2", three = "3", four = "4"
-    static var typeDisplayRepresentation: TypeDisplayRepresentation { "반" }
-    static var caseDisplayRepresentations: [ClassOption: DisplayRepresentation] { [.one: "1반", .two: "2반", .three: "3반", .four: "4반"] }
-}
 struct SchoolConfiguration: WidgetConfigurationIntent {
     static var title: LocalizedStringResource { "나의 시간표" }
-    static var description: IntentDescription { "학년과 반을 선택해 주세요." }
-    @Parameter(title: "학년", default: .first) var grade: GradeOption
-    @Parameter(title: "반", default: .one) var classroom: ClassOption
-    var serverAddress: String { "https://bssm-timetable.vercel.app" }
+    static var description: IntentDescription { "시간표 앱에서 로그인하고 만든 위젯 연결 코드를 입력하세요." }
+    @Parameter(title: "위젯 연결 코드", default: "") var accountCode: String
 }
 struct SchoolEntry: TimelineEntry {
     let date: Date
@@ -44,13 +33,18 @@ struct SchoolProvider: AppIntentTimelineProvider {
     }
     private func entry(_ configuration: SchoolConfiguration) async -> SchoolEntry {
         let now = Date()
-        guard let origin = SchoolAPI.origin(configuration.serverAddress) else { return SchoolEntry(date: now, configuration: configuration, day: nil, message: "위젯을 편집해 서버 주소를 확인해 주세요.") }
-        let key = "cache:\(origin):\(configuration.grade.rawValue):\(configuration.classroom.rawValue)"
+        let code = configuration.accountCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return SchoolEntry(date: now, configuration: configuration, day: nil, message: "로그인 후 위젯 연결 코드를 입력해 주세요.") }
+        let key = "account:" + SHA256.hash(data: Data(code.utf8)).map { String(format: "%02x", $0) }.joined()
         do {
-            let day = try await SchoolAPI.load(origin: origin, grade: configuration.grade.rawValue, classroom: configuration.classroom.rawValue, now: now)
+            let day = try await SchoolAPI.loadAccount(code: code, now: now)
             if let encoded = try? JSONEncoder().encode(day) { UserDefaults.standard.set(encoded, forKey: key) }
             return SchoolEntry(date: now, configuration: configuration, day: day, message: nil)
         } catch {
+            if (error as? URLError)?.code == .userAuthenticationRequired {
+                UserDefaults.standard.removeObject(forKey: key)
+                return SchoolEntry(date: now, configuration: configuration, day: nil, message: "연결이 해제됐어요. 로그인 후 새 코드를 입력해 주세요.")
+            }
             let cached = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(SchoolDay.self, from: $0) }
             return SchoolEntry(date: now, configuration: configuration, day: cached?.date == SchoolClock.dayKey(now) ? cached : nil, message: cached?.date == SchoolClock.dayKey(now) ? "연결 안 됨 · 저장된 오늘 시간표" : "서버 연결을 확인해 주세요.")
         }
@@ -60,9 +54,9 @@ struct SchoolWidgetView: View {
     let entry: SchoolEntry
     @Environment(\.widgetFamily) var family
     var body: some View {
-        TimetableCard(day: entry.day, date: entry.date, grade: entry.configuration.grade.rawValue, classroom: entry.configuration.classroom.rawValue, message: entry.message, large: family == .systemLarge, compact: family == .systemSmall)
+        TimetableCard(day: entry.day, date: entry.date, grade: entry.day?.grade ?? "–", classroom: entry.day?.classroom ?? "–", message: entry.message, large: family == .systemLarge, compact: family == .systemSmall)
             .containerBackground(for: .widget) { Color(red: 0.97, green: 0.98, blue: 1) }
-            .widgetURL(URL(string: "https://bssm-timetable.vercel.app/#/dashboard"))
+            .widgetURL(URL(string: entry.day == nil ? "https://bssm-timetable.vercel.app/#/notifications" : "https://bssm-timetable.vercel.app/#/dashboard"))
     }
 }
 struct imetableWidget: Widget {

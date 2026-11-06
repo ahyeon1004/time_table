@@ -1,3 +1,4 @@
+import { WidgetLink } from "./WidgetLink.jsx";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -361,6 +362,7 @@ export function Notifications({
           <h1>알림 설정</h1>
           <p>다음 수업과 이동 교실을 놓치지 않도록.</p>
         </header>
+        <WidgetLink />
         <div className="notification-controls">
           <Toggle
             label="화면 알림"

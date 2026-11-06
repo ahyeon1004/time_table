@@ -1,7 +1,8 @@
+import { createWidgetAccounts } from "../server/widget-account.js";
 import { createWidgetMiddleware } from "../server/widget.js";
 import webpush from "web-push";
 import { edgeStore } from "./store.js";
-import { authConfig, handleAuth, json } from "./auth.js";
+import { authConfig, handleAuth, json, jar } from "./auth.js";
 import { createPushService } from "../server/push-core.js";
 import { SCHOOL, parseNeisResponse, queryRange } from "../server/neis.js";
 
@@ -93,7 +94,7 @@ export function environment(env) {
       }
     },
   });
-  services = { store, load, push };
+  services = { store, load, push, widgetAccounts: createWidgetAccounts({db: env.DB, store, origin: env.APP_ORIGIN}) };
   runtime.set(env, services);
   return services;
 }
@@ -153,8 +154,28 @@ export default {
         return await handleAuth(request, env, services.store);
       if (url.pathname.startsWith("/api/push/"))
         return await bridge(request, services.push.middleware);
-      if (url.pathname === "/api/widget")
+      if (url.pathname === "/api/widget/link") {
+        if (!["POST", "DELETE"].includes(request.method)) return json(405,{error:{message:"지원하지 않는 요청입니다."}});
+        if (!services.widgetAccounts.sameOrigin(request)) return json(403,{error:{message:"요청 출처를 확인해 주세요."}});
+        const session=jar(request).bssm_session;
+        if (request.method === "DELETE") return await services.widgetAccounts.revoke(session) ? json(200,{ok:true}) : json(401,{error:{message:"로그인이 필요합니다."}});
+        const result=await services.widgetAccounts.create(session);
+        return result.error ? json(result.status,{error:{message:result.error}}) : json(200,{code:result.code,profile:result.profile});
+      }
+      if (url.pathname === "/api/widget/account") {
+        if(request.method!=="GET") return json(405,{error:{message:"GET 요청만 지원합니다."}});
+        const profile=await services.widgetAccounts.resolve(request);
+        return profile ? json(200,{profile}) : json(401,{error:{message:"위젯 계정을 다시 연결해 주세요."}});
+      }
+      if (url.pathname === "/api/widget") {
+        if(request.headers.has("authorization")) {
+          const profile=await services.widgetAccounts.resolve(request);
+          if(!profile)return json(401,{error:{message:"위젯 계정을 다시 연결해 주세요."}});
+          url.searchParams.set("grade",profile.grade);url.searchParams.set("classroom",profile.classroom);
+          request=new Request(url,request);
+        }
         return await bridge(request, createWidgetMiddleware({ loadTimetable: services.load }));
+      }
       if (url.pathname === "/api/timetable") {
         if (request.method !== "GET")
           return json(405, { error: { message: "GET 요청만 지원합니다." } });
