@@ -132,22 +132,6 @@ Node 서버(또는 개발/preview 서버)의 스케줄러가 30초마다 한국 
 브라우저 푸시 제공사에 암호화된 알림이 전달됩니다. 발송 대상 주소는 Google·Apple·Mozilla의 알려진 HTTPS 엔드포인트로 제한하며, 구독·해제·설정·테스트 요청은 로그인과 같은 출처를 확인합니다.
 
 
-## GitHub에서 무료 Cloudflare 배포
-
-무료 배포 경로는 Workers Static Assets + D1 + Cron Trigger입니다. Node 로컬 실행은 그대로 사용할 수 있고, Cloudflare는 `edge/worker.js`를 실행합니다. 비밀값이나 개인 DB 파일을 GitHub로 업로드하지 않습니다. 이 경로는 무료 플랜 한도 안에서 동작하며 무료 CPU/요청/DB 한도를 넘으면 요청이나 예약 실행이 제한됩니다. 자동 유료 업그레이드는 하지 않습니다. 학교 전체 사용 전에는 배포 로그와 사용량을 확인해야 합니다.
-
-1. Cloudflare 무료 계정으로 로그인하고 GitHub의 `ahyeon1004/time_table` 저장소만 연결합니다.
-2. Workers 프로젝트 이름은 `bssm-timetable`, 빌드 명령은 `npm ci && npm run build`, 초기 배포 명령은 `npx wrangler deploy`입니다. `wrangler.jsonc`에는 D1 `DB` 바인딩과 1분 예약 작업이 정의되어 있습니다. 첫 배포에서 DB를 만들거나 기존 DB를 연결하고 반환된 database_id를 설정 파일에 저장합니다.
-3. `npm run edge:migrate:remote`로 DB 스키마를 적용합니다. 이후 자동 배포 명령은 `npm run edge:deploy`로 변경하여 마이그레이션 후 코드가 배포되게 합니다.
-4. Worker 변수 APP_ORIGIN을 실제 `https://...workers.dev` 주소로 설정합니다. GOOGLE_ALLOWED_DOMAINS는 `bssm.hs.kr`입니다.
-5. Worker Secrets에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEIS_API_KEY`, `WEB_PUSH_SUBJECT`, `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`를 등록합니다. VAPID 공개/비밀키는 로컬 `.data/web-push-keys.json`의 동일한 키 쌍을 사용하거나 배포 전 새로 생성한 쌍을 사용합니다. 비밀값은 콘솔의 암호화된 Secret 또는 `wrangler secret put`의 표준입력으로만 전달합니다. 배포 전에 해당 호스팅으로 비밀값을 저장할 사용자 승인을 확인합니다.
-6. Google Cloud OAuth 클라이언트의 승인된 리디렉션 URI에 배포 주소의 `/api/auth/callback`을 추가합니다. 로컬 URI는 계속 보존합니다.
-7. 공개 주소에서 가입, 학생 정보 저장, 로그아웃/재로그인, 실제 나이스 조회, 기기 알림 허용과 테스트 수신을 확인합니다. 로컬 계정 DB와 기기 구독을 업로드하지 않으므로 배포 사이트에서는 최초 한 번 다시 학생 정보를 등록하고 알림을 허용합니다. Google 계정 자체는 동일하게 사용할 수 있습니다.
-
-로컬 Workers 검증: `.dev.vars.example`을 `.dev.vars`로 복사하고 로컬 비밀값을 채운 뒤 `npm run edge:migrate:local`, `npm run edge:dev`를 실행합니다. `.dev.vars`와 `.wrangler`는 Git 제외 대상입니다. `npm run edge:check`는 원격 배포 없이 번들만 검증합니다.
-
-GitHub Actions의 `Check timetable`은 테스트와 배포 번들을 검증합니다. 실제 배포는 Cloudflare의 GitHub 연결에서 수행하므로 GitHub Actions에 Cloudflare 비밀 토큰을 추가할 필요가 없습니다. 각 서비스의 무료 사용량 및 권한 범위는 해당 계정에서 확인합니다.
-
 ## Vercel 배포
 
 Vite 정적 화면과 `api/index.js`의 Node.js 24 API를 함께 배포합니다.
