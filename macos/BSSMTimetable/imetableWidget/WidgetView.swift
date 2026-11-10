@@ -49,7 +49,7 @@ struct TimetableCard: View {
                     Spacer(minLength: 0)
                 } else {
                     Spacer(minLength: 0)
-                    Text("오늘 수업 끝!").font(.custom("GmarketSansTTFBold", size: 17))
+                    Text("오늘 수업 끝!").font(.custom("GmarketSansTTFMedium", size: 17))
                     Spacer(minLength: 0)
                 }
             } else {

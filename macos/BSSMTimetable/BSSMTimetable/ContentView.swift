@@ -7,6 +7,10 @@ struct ContentView: View {
             Text("바탕화면을 우클릭 → 위젯 편집 → 시간표를 추가하세요.")
             Text("학교 계정으로 로그인 → 알림 설정에서 위젯 연결 코드 만들기 → 위젯 편집에 코드를 붙여 넣으세요.").foregroundStyle(.secondary)
             Text("학교 기본 시간표를 표시합니다. 웹에서 설정한 이동 교실·단축수업은 아직 동기화되지 않습니다.").font(.caption).foregroundStyle(.secondary)
+            Link(destination: URL(string: "https://bssm-timetable.vercel.app/#/dashboard")!) {
+                Label("시간표 보러가기", systemImage: "calendar")
+            }
+            .buttonStyle(.borderedProminent)
             Link("학교 계정 로그인 · 위젯 연결", destination: URL(string: "https://bssm-timetable.vercel.app/#/notifications")!)
             Divider()
             Toggle("자동 업데이트", isOn: Binding(get: { updates.automatic }, set: { updates.automatic = $0 }))
