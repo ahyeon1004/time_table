@@ -9,7 +9,15 @@ struct TimetableCard: View {
     let message: String?
     let large: Bool
     let compact: Bool
-    private let blue = Color(red: 0.23, green: 0.41, blue: 0.67)
+    @Environment(\.colorScheme) private var colorScheme
+    private var blue: Color {
+        colorScheme == .dark
+            ? Color(red: 0.64, green: 0.78, blue: 1)
+            : Color(red: 0.23, green: 0.41, blue: 0.67)
+    }
+    private var badgeText: Color {
+        colorScheme == .dark ? Color(red: 0.10, green: 0.13, blue: 0.19) : .white
+    }
     private var current: SchoolLesson? { day?.lessons.first { lesson in
         guard let start = SchoolClock.instant(day: day!.date, time: lesson.start), let end = SchoolClock.instant(day: day!.date, time: lesson.end) else { return false }
         return start <= date && date < end
@@ -48,7 +56,7 @@ struct TimetableCard: View {
                 let lessons = large ? day!.lessons : Array((upcoming.isEmpty ? day!.lessons.suffix(3).map { $0 } : upcoming).prefix(3))
                 ForEach(lessons) { lesson in
                     HStack(spacing: 9) {
-                        Text("\(lesson.period)").font(.system(size: 12, weight: .bold)).foregroundStyle(current?.id == lesson.id ? .white : blue)
+                        Text("\(lesson.period)").font(.system(size: 12, weight: .bold)).foregroundStyle(current?.id == lesson.id ? badgeText : blue)
                             .frame(width: 25, height: 25).background(current?.id == lesson.id ? blue : blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
                         VStack(alignment: .leading, spacing: 3) {
                             Text(lesson.name).font(.custom("GmarketSansTTFMedium", size: 12)).lineLimit(1)

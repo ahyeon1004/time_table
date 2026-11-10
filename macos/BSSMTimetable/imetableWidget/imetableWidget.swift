@@ -53,9 +53,14 @@ struct SchoolProvider: AppIntentTimelineProvider {
 struct SchoolWidgetView: View {
     let entry: SchoolEntry
     @Environment(\.widgetFamily) var family
+    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         TimetableCard(day: entry.day, date: entry.date, grade: entry.day?.grade ?? "–", classroom: entry.day?.classroom ?? "–", message: entry.message, large: family == .systemLarge, compact: family == .systemSmall)
-            .containerBackground(for: .widget) { Color(red: 0.97, green: 0.98, blue: 1) }
+            .containerBackground(for: .widget) {
+                colorScheme == .dark
+                    ? Color(red: 0.10, green: 0.13, blue: 0.19)
+                    : Color(red: 0.97, green: 0.98, blue: 1)
+            }
             .widgetURL(URL(string: entry.day == nil ? "https://bssm-timetable.vercel.app/#/notifications" : "https://bssm-timetable.vercel.app/#/dashboard"))
     }
 }
