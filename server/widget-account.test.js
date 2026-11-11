@@ -29,7 +29,23 @@ test('계정 위젯은 2·3학년 반을 분리하고 프로필 변경·해제·
  assert.deepEqual(await accounts.resolve(req(two.code)),{grade:'3',classroom:'4'});
  await store.logout('two');assert.equal(await accounts.resolve(req(two.code)),null);
  const renewed=await accounts.create('one');clock=now+91*86400000;assert.equal(await accounts.resolve(req(renewed.code)),null);
- const env={DB:db,APP_ORIGIN:'https://school.test'};
+ const upstreamClasses=[];
+ t.mock.method(globalThis,'fetch',async url=>{
+  const params=new URL(url).searchParams;
+  upstreamClasses.push([params.get('GRADE'),params.get('CLASS_NM')]);
+  return Response.json({RESULT:{CODE:'INFO-200'}});
+ });
+ const env={DB:db,APP_ORIGIN:'https://school.test',NEIS_API_KEY:'test'};
+ const timetableRequest=(code,date)=>new Request('https://school.test/api/widget?date='+date,{headers:{Authorization:'Bearer '+code}});
+ for(const [classroom,date] of [['3','2026-11-11'],['4','2026-11-12']]){
+  await store.profile('one',{grade:'2',classroom,number:'1'});
+  const response=await worker.fetch(timetableRequest(renewed.code,date),env);
+  assert.equal(response.status,200);
+  const day=await response.json();
+  assert.deepEqual([day.grade,day.classroom,day.date],['2',classroom,date]);
+ }
+ assert.deepEqual(upstreamClasses,[['2','3'],['2','4']]);
+ await store.profile('one',{grade:'2',classroom:'3',number:'1'});
  const csrf=await worker.fetch(new Request('https://school.test/api/widget/link',{method:'POST',headers:{Origin:'https://attacker.test',Cookie:'bssm_session=one'}}),env);
  assert.equal(csrf.status,403);
  const linked=await worker.fetch(new Request('https://school.test/api/widget/account',{headers:{Authorization:'Bearer '+renewed.code}}),env);
