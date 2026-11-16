@@ -1,3 +1,5 @@
+import { readApiKey, studentSchool, validStudent, TimetableError } from "./neis.js";
+import { validateGoogleClaims } from "./google-claims.js";
 import { SESSION_MAX_AGE, sessionExpires } from "./session.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -20,10 +22,6 @@ export async function readAuthConfig(root = process.cwd()) {
   }
   const value = (key) => process.env[key]?.trim() || file[key] || "";
   const origin = value("APP_ORIGIN");
-  const domains = value("GOOGLE_ALLOWED_DOMAINS")
-    .split(",")
-    .map((x) => x.trim().toLowerCase())
-    .filter(Boolean);
   let validOrigin = false;
   try {
     const url = new URL(origin);
@@ -37,37 +35,14 @@ export async function readAuthConfig(root = process.cwd()) {
     clientId: value("GOOGLE_CLIENT_ID"),
     clientSecret: value("GOOGLE_CLIENT_SECRET"),
     origin,
-    domains,
     ready: Boolean(
       value("GOOGLE_CLIENT_ID") &&
       value("GOOGLE_CLIENT_SECRET") &&
-      validOrigin &&
-      domains.length,
+      validOrigin,
     ),
   };
 }
-export function validateSchoolClaims(claims, nonce, domains) {
-  if (
-    !claims?.sub ||
-    typeof claims.email !== "string" ||
-    claims.email_verified !== true ||
-    claims.nonce !== nonce
-  )
-    return false;
-  const domain = claims.email.split("@");
-  return (
-    domain.length === 2 &&
-    domains.includes(domain[1].toLowerCase()) &&
-    typeof claims.hd === "string" &&
-    domains.includes(claims.hd.toLowerCase())
-  );
-}
-export const validStudentProfile = (value) =>
-  value &&
-  ["1", "2", "3"].includes(value.grade) &&
-  ["1", "2", "3", "4"].includes(value.classroom) &&
-  /^\d{1,3}$/.test(value.number) &&
-  Number(value.number) > 0;
+export const validStudentProfile = validStudent;
 const random = () => randomBytes(32).toString("base64url");
 const cookies = (req) =>
   Object.fromEntries(
@@ -156,7 +131,6 @@ export function createAuthMiddleware({
             code_challenge: codeChallenge,
             code_challenge_method: "S256",
             prompt: "select_account",
-            ...(config.domains.length === 1 ? { hd: config.domains[0] } : {}),
           }),
         );
       }
@@ -181,7 +155,7 @@ export function createAuthMiddleware({
             audience: config.clientId,
           });
           const claims = ticket.getPayload();
-          if (!validateSchoolClaims(claims, attempt.nonce, config.domains))
+          if (!validateGoogleClaims(claims, attempt.nonce))
             return redirect("/#/account-error");
           const token = random();
           store().login(
@@ -225,7 +199,14 @@ export function createAuthMiddleware({
         }
         if (!validStudentProfile(profile))
           return fail(400, "학년·반·번호를 확인해 주세요.");
+        let school;
+        try {
+          school = await studentSchool(profile, profile.school ? await readApiKey(root) : "");
+        } catch (error) {
+          return fail(error instanceof TimetableError ? error.status : 502, "학교 정보를 확인하지 못했습니다.");
+        }
         store().profile(user.id, {
+          ...(school && { school }),
           grade: profile.grade,
           classroom: profile.classroom,
           number: String(Number(profile.number)),

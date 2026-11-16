@@ -65,7 +65,7 @@ npm start       # dist/와 서버 API 제공 (기본 127.0.0.1:3000)
 - 페이지가 열려 있는 동안 실제 조회된 다음 수업의 5분 전 안내
 - 브라우저 저장, 키보드 탐색, 모달 Escape 닫기, 포커스 복귀
 
-Google OAuth는 서버 인증 코드 방식으로 연결됩니다. bssm.hs.kr 학교 Google Workspace 계정만 가입할 수 있습니다. Google Cloud OAuth 클라이언트 설정이 완료되어야 실제 로그인이 가능합니다. 알림은 페이지 안에서 표시하며, 닫힌 페이지의 기기 알림은 웹 푸시로 제공합니다.
+Google OAuth는 서버 인증 코드 방식으로 연결됩니다. 검증된 이메일이 있는 Google 계정으로 로그인할 수 있습니다. 로그인 후 나이스에서 학교를 검색하고 학년·반을 저장합니다. Google Cloud OAuth 클라이언트 설정이 완료되어야 실제 로그인이 가능합니다. 알림은 페이지 안에서 표시하며, 닫힌 페이지의 기기 알림은 웹 푸시로 제공합니다.
 
 기존 예시 시간표에 저장한 이동 교실·단축수업 설정은 실제 시간표에 자동 적용하지 않습니다. 실제 연동 설정은 별도 저장 키(`bssm.movements.neis.v1`, `bssm.short.neis.v1`)를 사용합니다. 학생 정보와 알림 설정은 유지합니다.
 
@@ -102,15 +102,15 @@ Gmarket Sans: https://corp.gmarket.com/fonts/ — 원본 라이선스는 `public
 
 ## Google 회원가입·로그인 설정
 
-1. Google Cloud Console에서 프로젝트를 선택하고 Google Auth Platform의 Branding(앱 이름 `BSSM 시간표`, 지원 이메일)·Audience·Data Access를 설정합니다. 로그인에 필요한 범위는 `openid`, `email`, `profile`뿐입니다. 학교 조직 계정 프로젝트라면 Internal을 선택할 수 있습니다. External의 Testing 상태라면 사용할 학교 계정을 테스트 사용자로 등록합니다.
+1. Google Cloud Console에서 프로젝트를 선택하고 Google Auth Platform의 Branding(앱 이름 `BSSM 시간표`, 지원 이메일)·Audience·Data Access를 설정합니다. 로그인에 필요한 범위는 `openid`, `email`, `profile`뿐입니다. 개인 Google 계정으로 로그인하려면 Audience를 External로 설정합니다. 공개 사용을 위해 게시 상태를 확인합니다.
 2. Clients에서 **웹 애플리케이션** OAuth 클라이언트를 만듭니다. 승인된 리디렉션 URI에 `http://127.0.0.1:5173/api/auth/callback`을 정확하게 등록합니다. 이 구현은 서버 리디렉션 방식이므로 승인된 JavaScript 원본은 필요하지 않습니다.
-3. `.env.local`의 빈 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`에 발급받은 값을 저장합니다. 비밀키를 채팅·GitHub에 올리지 마세요. `GOOGLE_ALLOWED_DOMAINS=bssm.hs.kr`, `APP_ORIGIN=http://127.0.0.1:5173`을 유지합니다.
+3. `.env.local`의 빈 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`에 발급받은 값을 저장합니다. 비밀키를 채팅·GitHub에 올리지 마세요. `APP_ORIGIN=http://127.0.0.1:5173`을 유지합니다.
 4. `npm run dev` 후 `http://127.0.0.1:5173/#/signup`에서 Google 계정을 선택합니다. Google 설정은 요청마다 읽기 때문에 값 저장 후 다시 확인할 수 있습니다. `localhost`와 `127.0.0.1`은 서로 다른 주소이므로 위 주소를 그대로 사용합니다.
 5. 실제 가입 → 학년·반·번호 등록 → 새로고침 → 로그아웃 → 재로그인 순서로 확인합니다. 첫 로그인은 가입 처리되며, 재로그인하면 서버에 저장된 학생 정보를 복원합니다.
 
 개발 서버와 preview는 인증 리디렉션을 일치시키기 위해 5173 포트만 사용합니다. 운영 서버는 `APP_ORIGIN`을 실제 HTTPS 주소로 바꾸고 Google 클라이언트에도 해당 주소의 `/api/auth/callback`을 추가해야 합니다. 로컬에서 `npm start`의 기본 3000 포트를 사용한다면 APP_ORIGIN과 등록된 리디렉션 URI도 3000으로 맞춥니다.
 
-Google 비밀번호·액세스 토큰·리프레시 토큰은 저장하지 않습니다. 로그인에는 state·nonce·PKCE와 Google 공식 라이브러리의 ID 토큰 검증을 사용하며, 검증된 이메일과 Workspace hd 모두 학교 도메인과 일치해야 합니다. 세션 쿠키는 HttpOnly·SameSite=Lax이고 HTTPS에서는 Secure를 사용합니다. 세션은 7일 만료되며 로그아웃 시 폐기합니다. 프로필 저장·로그아웃은 동일 출처 요청만 허용합니다.
+Google 비밀번호·액세스 토큰·리프레시 토큰은 저장하지 않습니다. 로그인에는 state·nonce·PKCE와 Google 공식 라이브러리의 ID 토큰 검증을 사용하며, 검증된 이메일이 있는 계정만 허용합니다. 세션 쿠키는 HttpOnly·SameSite=Lax이고 HTTPS에서는 Secure를 사용합니다. 세션은 7일 만료되며 로그아웃 시 폐기합니다. 프로필 저장·로그아웃은 동일 출처 요청만 허용합니다.
 
 계정·학생 프로필과 해시된 세션은 `.data/auth.sqlite`에 저장합니다. 이 폴더와 `.env.local`은 Git 제외 대상입니다. 배포 시 `.data`를 보존할 영구 디스크가 필요합니다. 인증 시작 시 자동 생성되므로 비어 있는 개발 환경에서는 아직 파일이 없을 수 있습니다. 여러 서버 인스턴스로 배포하려면 공유 DB로 변경해야 합니다.
 

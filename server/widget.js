@@ -1,3 +1,5 @@
+import { schoolFromQuery } from "./neis.js";
+import { validClass } from "../src/lib/schools.js";
 import { normalizeTimetable } from '../src/lib/timetable.js';
 import { createSchedule, dateKey, mondayOf, parseDate, timeLabel } from '../src/lib/schedule.js';
 
@@ -7,11 +9,12 @@ export function widgetDate(now=new Date()) {
 }
 export function widgetQuery(params,now) {
   const grade=params.get('grade'), classroom=params.get('classroom'), key=params.get('date')||widgetDate(now);
-  if(!/^[1-3]$/.test(grade??'')||!/^[1-4]$/.test(classroom??'')||!/^20\d{2}-\d{2}-\d{2}$/.test(key))throw new Error('invalid');
+  const school = schoolFromQuery(params);
+  if(!validClass(grade, classroom, school)||!/^20\d{2}-\d{2}-\d{2}$/.test(key))throw new Error('invalid');
   const date=parseDate(key);
   if(dateKey(date)!==key)throw new Error('invalid');
   const week=mondayOf(date);const friday=new Date(week);friday.setDate(friday.getDate()+4);
-  return {grade,classroom,key,date,week,range:{grade,classroom,from:dateKey(week),to:dateKey(friday)}};
+  return {grade,classroom,key,date,week,school,range:{grade,classroom,from:dateKey(week),to:dateKey(friday), ...(school && {school})}};
 }
 export function createWidgetMiddleware({loadTimetable,now=()=>new Date()}) {
   return async(req,res,next)=>{
@@ -22,10 +25,10 @@ export function createWidgetMiddleware({loadTimetable,now=()=>new Date()}) {
     try{query=widgetQuery(url.searchParams,now());}catch{return json(400,{error:{message:'위젯의 학년·반·날짜를 확인해 주세요.'}});}
     try {
       const payload=await loadTimetable(query.range);
-      const timetable=normalizeTimetable(payload,{grade:query.grade,classroom:query.classroom,week:query.week});
+      const timetable=normalizeTimetable(payload,{grade:query.grade,classroom:query.classroom,week:query.week,school:query.school});
       const slots=createSchedule(null,timetable.maxPeriods).periods;
       const lessons=(timetable.byDate[query.key]??[]).flatMap((lesson,i)=>lesson?[{period:i+1,name:lesson.name,teacher:lesson.teacher,start:timeLabel(slots[i].start),end:timeLabel(slots[i].end)}]:[]);
-      return json(200,{date:query.key,grade:query.grade,classroom:query.classroom,source:'NEIS',fetchedAt:payload.fetchedAt,usesDefaultBellTimes:true,lessons});
+      return json(200,{date:query.key,grade:query.grade,classroom:query.classroom,source:'NEIS',schoolCode:query.school?.code,fetchedAt:payload.fetchedAt,usesDefaultBellTimes:true,lessons});
     }catch{return json(502,{error:{message:'학교 시간표를 불러오지 못했습니다.'}});}
   };
 }

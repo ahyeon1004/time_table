@@ -1,8 +1,9 @@
+import { validateGoogleClaims } from "./google-claims.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createAuthMiddleware,
-  validateSchoolClaims,
+
   validStudentProfile,
 } from "./auth.js";
 import { createAuthStore } from "./auth-store.js";
@@ -108,34 +109,21 @@ function fixture() {
     },
   };
 }
-test("학교 도메인·Workspace hd·검증 이메일·nonce 모두 일치해야 가입할 수 있다", () => {
-  assert.equal(
-    validateSchoolClaims({ ...claims, nonce: "n" }, "n", config.domains),
-    true,
-  );
+test("개인 Google 계정도 이메일 인증과 nonce가 유효하면 허용한다", () => {
+  assert.equal(validateGoogleClaims({ sub: "person", email: "person@gmail.com", email_verified: true, nonce: "n" }, "n"), true);
   for (const patch of [
-    { hd: "gmail.com" },
-    { hd: undefined },
-    { email: "student@bssm.hs.kr.evil.test" },
+    { email: "invalid" },
     { email_verified: false },
     { nonce: "wrong" },
     { sub: "" },
-  ])
-    assert.equal(
-      validateSchoolClaims(
-        { ...claims, nonce: "n", ...patch },
-        "n",
-        config.domains,
-      ),
-      false,
-    );
+  ]) assert.equal(validateGoogleClaims({ ...claims, nonce: "n", ...patch }, "n"), false);
   assert.equal(
     validStudentProfile({ grade: "1", classroom: "4", number: "12" }),
     true,
   );
   for (const patch of [
     { grade: "4" },
-    { classroom: "5" },
+    { classroom: "100" },
     { number: "0" },
     { number: "1.5" },
     { number: "1234" },
@@ -178,6 +166,7 @@ test("인증 콜백은 브라우저 쿠키·state를 확인하고 한 번만 사
   const flow = await f.start();
   const missing = await f.request(flow.url);
   assert.equal(missing.headers.location, "/#/auth?error=invalid");
+  f.setClaims({ email: "user@gmail.com", hd: undefined });
   const success = await f.request(flow.url, { cookie: flow.cookie });
   assert.equal(success.headers.location, "/#/profile");
   assert.ok(
@@ -195,11 +184,11 @@ test("인증 콜백은 브라우저 쿠키·state를 확인하고 한 번만 사
     "/#/auth?error=invalid",
   );
 });
-test("다른 학교·변조된 nonce는 세션을 발급하지 않는다", async (t) => {
+test("인증되지 않은 이메일·변조된 nonce는 세션을 발급하지 않는다", async (t) => {
   const f = fixture();
   t.after(() => f.store.close());
   for (const patch of [
-    { hd: "other.school", email: "user@other.school" },
+    { email: "user@gmail.com", email_verified: false },
     { nonce: "wrong" },
   ]) {
     f.setClaims(patch);

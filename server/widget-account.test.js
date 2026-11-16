@@ -45,6 +45,14 @@ test('계정 위젯은 2·3학년 반을 분리하고 프로필 변경·해제·
   assert.deepEqual([day.grade,day.classroom,day.date],['2',classroom,date]);
  }
  assert.deepEqual(upstreamClasses,[['2','3'],['2','4']]);
+ const school = { office: "J10", code: "7699999", kind: "초등학교" };
+ await store.profile('one',{grade:'6',classroom:'12',number:'1',school});
+ const national = await worker.fetch(timetableRequest(renewed.code,'2026-11-11'),env);
+ assert.equal(national.status,200);
+ assert.deepEqual(await national.json().then(({schoolCode,grade,classroom})=>({schoolCode,grade,classroom})),{
+  schoolCode:school.code,grade:'6',classroom:'12',
+ });
+ assert.deepEqual(upstreamClasses.at(-1),['6','12']);
  await store.profile('one',{grade:'2',classroom:'3',number:'1'});
  const csrf=await worker.fetch(new Request('https://school.test/api/widget/link',{method:'POST',headers:{Origin:'https://attacker.test',Cookie:'bssm_session=one'}}),env);
  assert.equal(csrf.status,403);

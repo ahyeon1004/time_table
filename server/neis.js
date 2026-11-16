@@ -2,11 +2,61 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 
-export const SCHOOL = Object.freeze({
-  office: "C10",
-  code: "7150658",
-  name: "부산소프트웨어마이스터고등학교",
-});
+import { BSSM, schoolIdentity, schoolType, validClass, schoolKey } from "../src/lib/schools.js";
+
+export const SCHOOL = BSSM;
+
+export function schoolFromQuery(params) {
+  if (!["office", "code", "kind"].some((key) => params.has(key))) return undefined;
+  const school = schoolIdentity(Object.fromEntries(params));
+  if (!school) throw new TimetableError("INVALID_SCHOOL", "학교를 다시 선택해 주세요.", 400);
+  return school;
+}
+
+export async function findSchools(query, key, fetchImpl = globalThis.fetch, identity) {
+  const name = query?.trim() ?? "";
+  if (!identity && (name.length < 2 || name.length > 60))
+    throw new TimetableError("INVALID_SEARCH", "학교 이름을 2자 이상 입력해 주세요.", 400);
+  if (!key) throw new TimetableError("NEIS_KEY_MISSING", "학교 검색 연결을 확인해 주세요.", 503);
+  const params = new URLSearchParams({ KEY: key, Type: "json", pSize: "100" });
+  if (identity) {
+    params.set("ATPT_OFCDC_SC_CODE", identity.office);
+    params.set("SD_SCHUL_CODE", identity.code);
+  } else {
+    params.set("SCHUL_NM", name);
+  }
+  const response = await fetchImpl("https://open.neis.go.kr/hub/schoolInfo?" + params, {
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new TimetableError("NEIS_UNAVAILABLE", "학교 검색에 실패했습니다.");
+  const payload = await response.json();
+  if (payload.RESULT?.CODE === "INFO-200") return [];
+  const rows = payload.schoolInfo?.[1]?.row;
+  if (!Array.isArray(rows)) throw new TimetableError("NEIS_UNAVAILABLE", "학교 검색에 실패했습니다.");
+  return rows.flatMap((row) => {
+    const school = schoolIdentity({
+      office: row.ATPT_OFCDC_SC_CODE, code: row.SD_SCHUL_CODE, kind: row.SCHUL_KND_SC_NM,
+    });
+    if (!school || typeof row.SCHUL_NM !== "string") return [];
+    return [{ ...school, name: row.SCHUL_NM, region: row.LCTN_SC_NM ?? "", address: row.ORG_RDNMA ?? "" }];
+  });
+}
+
+export function validStudent(value) {
+  const school = value?.school === undefined ? BSSM : schoolIdentity(value.school);
+  return Boolean(school && validClass(value?.grade, value?.classroom, school)
+    && typeof value.number === "string" && /^\d{1,3}$/.test(value.number) && Number(value.number) > 0);
+}
+
+export async function studentSchool(value, key, fetchImpl) {
+  if (value.school === undefined) return undefined;
+  const identity = schoolIdentity(value.school);
+  const schools = await findSchools("", key, fetchImpl, identity);
+  const school = schools.find((result) => schoolKey(result) === schoolKey(identity));
+  if (!school) throw new TimetableError("INVALID_SCHOOL", "학교를 다시 선택해 주세요.", 400);
+  return school;
+}
+
 const TTL = 5 * 60 * 1000;
 
 export class TimetableError extends Error {
@@ -33,9 +83,9 @@ export function queryRange(params) {
   const grade = params.get("grade"),
     classroom = params.get("classroom"),
     week = params.get("week");
+  const school = schoolFromQuery(params);
   if (
-    !/^[1-3]$/.test(grade ?? "") ||
-    !/^[1-9]\d?$/.test(classroom ?? "") ||
+    !validClass(grade, classroom, school) ||
     !/^20\d{2}-\d{2}-\d{2}$/.test(week ?? "")
   ) {
     throw new TimetableError(
@@ -58,20 +108,22 @@ export function queryRange(params) {
   }
   const end = new Date(date);
   end.setUTCDate(end.getUTCDate() + 4);
-  return { grade, classroom, from: week, to: end.toISOString().slice(0, 10) };
+  return { grade, classroom, from: week, to: end.toISOString().slice(0, 10), ...(school && { school }) };
 }
 export function parseNeisResponse(payload, range) {
+  const school = range.school ?? SCHOOL;
+  const dataset = payload[schoolType(school.kind).endpoint];
   const status =
     payload.RESULT ??
-    payload.hisTimetable?.[0]?.head?.find((entry) => entry.RESULT)?.RESULT;
+    dataset?.[0]?.head?.find((entry) => entry.RESULT)?.RESULT;
   if (status?.CODE === "INFO-200") return [];
   if (status?.CODE !== "INFO-000")
     throw new TimetableError(
       "NEIS_REJECTED",
       "나이스 조회에 실패했습니다. 인증키와 서비스 상태를 확인해 주세요.",
     );
-  const rows = payload.hisTimetable?.[1]?.row;
-  const total = payload.hisTimetable?.[0]?.head?.find(
+  const rows = dataset?.[1]?.row;
+  const total = dataset?.[0]?.head?.find(
     (entry) => "list_total_count" in entry,
   )?.list_total_count;
   if (
@@ -95,8 +147,8 @@ export function parseNeisResponse(payload, range) {
     const date = `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
     const period = Number(row.PERIO);
     if (
-      row.SD_SCHUL_CODE !== SCHOOL.code ||
-      row.ATPT_OFCDC_SC_CODE !== SCHOOL.office ||
+      row.SD_SCHUL_CODE !== school.code ||
+      row.ATPT_OFCDC_SC_CODE !== school.office ||
       String(row.GRADE) !== range.grade ||
       String(row.CLASS_NM) !== range.classroom ||
       date < range.from ||
@@ -135,7 +187,8 @@ export function createTimetableMiddleware({
   const cache = new Map(),
     pending = new Map();
   async function load(range, key, refresh) {
-    const id = `${createHash("sha256").update(key).digest("hex")}:${range.grade}:${range.classroom}:${range.from}`;
+    const school = range.school ?? SCHOOL;
+    const id = `${createHash("sha256").update(key).digest("hex")}:${schoolKey(school)}:${range.grade}:${range.classroom}:${range.from}`;
     const cached = cache.get(id);
     if (!refresh && cached && now() - cached.time < TTL)
       return { ...cached.value, cached: true };
@@ -146,8 +199,8 @@ export function createTimetableMiddleware({
         Type: "json",
         pIndex: "1",
         pSize: "1000",
-        ATPT_OFCDC_SC_CODE: SCHOOL.office,
-        SD_SCHUL_CODE: SCHOOL.code,
+        ATPT_OFCDC_SC_CODE: school.office,
+        SD_SCHUL_CODE: school.code,
         GRADE: range.grade,
         CLASS_NM: range.classroom,
         TI_FROM_YMD: range.from.replaceAll("-", ""),
@@ -157,7 +210,7 @@ export function createTimetableMiddleware({
       const timeout = setTimeout(() => controller.abort(), 12_000);
       try {
         const response = await fetchImpl(
-          `https://open.neis.go.kr/hub/hisTimetable?${params}`,
+          `https://open.neis.go.kr/hub/${schoolType(school.kind).endpoint}?${params}`,
           { signal: controller.signal },
         );
         if (!response.ok)
@@ -168,8 +221,9 @@ export function createTimetableMiddleware({
         const rows = parseNeisResponse(await response.json(), range);
         const value = {
           source: "NEIS",
-          school: SCHOOL.name,
           ...range,
+          school: school.name,
+          schoolIdentity: school,
           fetchedAt: new Date(now()).toISOString(),
           rows,
           teacherAvailable: false,
@@ -190,7 +244,7 @@ export function createTimetableMiddleware({
   }
   const middleware = async function timetableMiddleware(req, res, next) {
     const url = new URL(req.url, "http://localhost");
-    if (url.pathname !== "/api/timetable") {
+    if (!["/api/timetable", "/api/schools"].includes(url.pathname)) {
       if (next) return next();
       res.writeHead(404).end();
       return;
@@ -205,6 +259,10 @@ export function createTimetableMiddleware({
           "GET 요청만 지원합니다.",
           405,
         );
+      }
+      if (url.pathname === "/api/schools") {
+        const schools = await findSchools(url.searchParams.get("q"), await getApiKey(), fetchImpl);
+        return res.writeHead(200).end(JSON.stringify({ schools }));
       }
       const range = queryRange(url.searchParams);
       const key = await getApiKey();

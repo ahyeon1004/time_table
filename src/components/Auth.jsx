@@ -1,3 +1,4 @@
+import { BSSM, schoolKey, schoolType, validClass } from "../lib/schools.js";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -17,16 +18,13 @@ export function Landing({ navigate }) {
           시간표<span>.</span>
         </h1>
         <div className="landing-actions">
-          <Button onClick={() => navigate("/login")}>
-            로그인
-            <ArrowRight size={18} />
-          </Button>
-          <Button variant="secondary" onClick={() => navigate("/signup")}>
-            회원가입
+          <Button className="google-button" onClick={() => navigate("/auth")}>
+            <GoogleLogo />
+            Google로 로그인
           </Button>
         </div>
       </div>
-      <p className="landing-school">부산소프트웨어마이스터고등학교</p>
+      <p className="landing-school">우리 학교 주간 시간표</p>
     </main>
   );
 }
@@ -47,42 +45,8 @@ function AuthLayout({ children, navigate, back = "/", className = "" }) {
         </button>
         {children}
       </section>
-      <p className="auth-footer">BSSM · 하루를 정리하는 가장 쉬운 방법</p>
+      <p className="auth-footer">시간표</p>
     </main>
-  );
-}
-export function Login({ signup = false, navigate }) {
-  return (
-    <AuthLayout navigate={navigate}>
-      <header className="auth-heading">
-        <h1>{signup ? "회원가입" : "로그인"}</h1>
-        <p>
-          {signup
-            ? "학교 이메일을 사용해 가입해 주세요."
-            : "학교 계정으로 로그인해 주세요."}
-        </p>
-      </header>
-      <Button
-        className="google-button"
-        onClick={() => navigate(`/auth?mode=${signup ? "signup" : "login"}`)}
-      >
-        <GoogleLogo />
-        Google로 {signup ? "회원가입" : "로그인"}
-      </Button>
-      {signup && (
-        <p className="school-help">
-          부산소프트웨어마이스터고등학교에서 사용하는
-          <br />
-          학교 Google 계정으로 가입해 주세요.
-        </p>
-      )}
-      <p className="auth-switch">
-        {signup ? "이미 계정이 있으신가요?" : "아직 계정이 없으신가요?"}
-        <button onClick={() => navigate(signup ? "/login" : "/signup")}>
-          {signup ? "로그인" : "회원가입"}
-        </button>
-      </p>
-    </AuthLayout>
   );
 }
 export function GoogleAuth({ navigate }) {
@@ -108,13 +72,13 @@ export function GoogleAuth({ navigate }) {
   }
   useEffect(check, []);
   return (
-    <AuthLayout navigate={navigate} back="/login">
+    <AuthLayout navigate={navigate}>
       <header className="auth-heading">
         <span className="auth-icon">
           <ShieldCheck size={27} />
         </span>
-        <h1>학교 계정으로 시작하기</h1>
-        <p>bssm.hs.kr Google 계정으로 계속해 주세요.</p>
+        <h1>Google로 로그인</h1>
+        <p>사용하는 Google 계정으로 계속해 주세요.</p>
       </header>
       {messages[error] && (
         <p className="account-error-message" role="alert">
@@ -124,7 +88,7 @@ export function GoogleAuth({ navigate }) {
       {!checking && !ready && (
         <div className="demo-notice" role="status">
           <p>
-            학교 계정 로그인 준비 중입니다.
+            Google 로그인 연결을 확인하는 중입니다.
             <br />
             설정이 완료되면 이용할 수 있어요.
           </p>
@@ -152,32 +116,51 @@ export function GoogleAuth({ navigate }) {
 }
 export function AccountError({ navigate }) {
   return (
-    <AuthLayout navigate={navigate} back="/signup">
+    <AuthLayout navigate={navigate} back="/">
       <header className="auth-heading">
         <span className="auth-icon error-icon">
           <WarningCircle size={28} />
         </span>
-        <h1>학교 계정이 필요해요</h1>
-        <p>선택한 계정으로는 가입할 수 없습니다.</p>
+        <h1>Google 계정을 확인해 주세요</h1>
+        <p>Google에서 이메일을 확인한 뒤 다시 시도해 주세요.</p>
       </header>
       <div className="account-error-message">
-        <strong>학교 Google 계정을 선택해 주세요.</strong>
-        <p>
-          학교에서 사용하는 계정인지 확인한 뒤<br />
-          다시 시도해 주세요.
-        </p>
+        <strong>이메일 인증을 완료한 Google 계정을 선택해 주세요.</strong>
       </div>
       <Button onClick={() => navigate("/auth")}>
-        학교 계정으로 다시 선택
+        Google 계정 다시 선택
         <ArrowRight size={17} />
       </Button>
-      <Button variant="secondary" onClick={() => navigate("/signup")}>
-        회원가입으로 돌아가기
+      <Button variant="secondary" onClick={() => navigate("/login")}>
+        로그인으로 돌아가기
       </Button>
     </AuthLayout>
   );
 }
 export function Profile({ navigate, onComplete, profile }) {
+  const [school, setSchool] = useState(profile ? profile.school ?? BSSM : null);
+  const [query, setQuery] = useState("");
+  const [schools, setSchools] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchStatus, setSearchStatus] = useState("");
+  async function searchSchools() {
+    const name = query.trim();
+    if (name.length < 2 || searching) return;
+    setSearching(true);
+    setSchools([]);
+    setSearchStatus("");
+    try {
+      const response = await fetch("/api/schools?" + new URLSearchParams({ q: name }));
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error?.message);
+      setSchools(body.schools);
+      if (!body.schools.length) setSearchStatus("검색 결과가 없어요. 학교 이름을 확인해 주세요.");
+    } catch (error) {
+      setSearchStatus(error.message || "학교 검색에 실패했어요. 다시 시도해 주세요.");
+    } finally {
+      setSearching(false);
+    }
+  }
   const [grade, setGrade] = useState(profile?.grade ?? "");
   const [classroom, setClassroom] = useState(profile?.classroom ?? "");
   const [number, setNumber] = useState(profile?.number ?? "");
@@ -187,8 +170,9 @@ export function Profile({ navigate, onComplete, profile }) {
   async function submit(event) {
     event.preventDefault();
     const next = {};
+    if (!school) next.school = "학교를 검색해서 선택해 주세요.";
     if (!grade) next.grade = "학년을 선택해 주세요.";
-    if (!classroom) next.classroom = "반을 선택해 주세요.";
+    if (school && grade && !validClass(grade, classroom, school)) next.classroom = "1~99 사이의 반 번호를 입력해 주세요.";
     if (
       !/^\d{1,3}$/.test(String(number)) ||
       Number(number) < 1 ||
@@ -200,7 +184,10 @@ export function Profile({ navigate, onComplete, profile }) {
       setSaving(true);
       setSaveError("");
       try {
-        await onComplete({ grade, classroom, number: String(Number(number)) });
+        await onComplete({
+          school: profile && !profile.school && school === BSSM ? undefined : school,
+          grade, classroom, number: String(Number(number)),
+        });
       } catch (error) {
         setSaveError(
           error.message || "저장하지 못했습니다. 다시 시도해 주세요.",
@@ -215,12 +202,55 @@ export function Profile({ navigate, onComplete, profile }) {
       <header className="auth-heading">
         <span className="step-label">
           <Check size={13} weight="bold" />
-          학교 계정 확인
+          Google 계정 확인
         </span>
         <h1>학생 정보 등록</h1>
-        <p>학년·반에 맞는 시간표를 보여드려요.</p>
+        <p>학교와 학년·반에 맞는 시간표를 보여드려요.</p>
       </header>
       <form className="profile-form" onSubmit={submit} noValidate>
+        <Field id="school" label="학교" error={errors.school}>
+          {school && <p><strong>{school.name}</strong> {school.region}</p>}
+          <input id="school" type="search" aria-invalid={Boolean(errors.school)}
+            aria-describedby={errors.school ? "school-error" : undefined} maxLength={60} value={query}
+            placeholder="학교 이름으로 검색"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSchools([]);
+              setSearchStatus("");
+            }}
+            disabled={searching || saving}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void searchSchools();
+              }
+            }}
+          />
+          <Button type="button" variant="secondary" disabled={query.trim().length < 2 || searching || saving} onClick={searchSchools}>
+            {searching ? "검색 중" : "학교 검색"}
+          </Button>
+          {searchStatus && <p role="status">{searchStatus}</p>}
+          {schools.length > 0 && <ul className="school-results" aria-label="학교 검색 결과">
+            {schools.map((result) => (
+              <li key={schoolKey(result)}>
+                <button type="button" disabled={saving} onClick={() => {
+                  setSchool(result);
+                  if (!school || schoolKey(result) !== schoolKey(school)) {
+                    setGrade("");
+                    setClassroom("");
+                    setNumber("");
+                  }
+                  setErrors({});
+                  setSchools([]);
+                  setQuery("");
+                }}>
+                  <strong>{result.name}</strong>
+                  <span>{[result.region, result.address].filter(Boolean).join(" · ")}</span>
+                </button>
+              </li>
+            ))}
+          </ul>}
+        </Field>
         <Field id="grade" label="학년" error={errors.grade}>
           <span className="select-wrap">
             <select
@@ -231,7 +261,7 @@ export function Profile({ navigate, onComplete, profile }) {
               onChange={(e) => setGrade(e.target.value)}
             >
               <option value="">학년 선택</option>
-              {[1, 2, 3].map((g) => (
+              {Array.from({ length: schoolType(school?.kind)?.grades ?? 0 }, (_, index) => index + 1).map((g) => (
                 <option key={g} value={g}>
                   {g}학년
                 </option>
@@ -241,25 +271,12 @@ export function Profile({ navigate, onComplete, profile }) {
           </span>
         </Field>
         <Field id="classroom" label="반" error={errors.classroom}>
-          <span className="select-wrap">
-            <select
-              id="classroom"
-              value={classroom}
-              aria-invalid={Boolean(errors.classroom)}
-              aria-describedby={
-                errors.classroom ? "classroom-error" : undefined
-              }
-              onChange={(e) => setClassroom(e.target.value)}
-            >
-              <option value="">반 선택</option>
-              {[1, 2, 3, 4].map((c) => (
-                <option key={c} value={c}>
-                  {c}반
-                </option>
-              ))}
-            </select>
-            <CaretDown size={15} />
-          </span>
+          <input id="classroom" type="text" inputMode="numeric" maxLength={2}
+            placeholder="반 번호 입력" value={classroom}
+            aria-invalid={Boolean(errors.classroom)}
+            aria-describedby={errors.classroom ? "classroom-error" : undefined}
+            onChange={(event) => setClassroom(event.target.value)}
+          />
         </Field>
         <Field id="number" label="번호" error={errors.number}>
           <input

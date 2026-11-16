@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { BSSM, schoolIdentity, validClass } from "../src/lib/schools.js";
 const hash = value => createHash('sha256').update(value).digest('hex');
 export function createWidgetAccounts({db,store,origin,now=Date.now}) {
  let ready;
@@ -14,7 +15,7 @@ export function createWidgetAccounts({db,store,origin,now=Date.now}) {
    if(Number(count.n)>=10)return {status:409,error:'기존 위젯 연결을 해제한 뒤 새 코드를 만들어 주세요.'};
    const code=randomBytes(32).toString('base64url');
    await db.prepare('INSERT INTO widget_accounts VALUES (?,?,?,?)').bind(hash(code),user.id,hash(session),now()+90*86400000).run();
-   return {status:200,code,profile:{grade:user.profile.grade,classroom:user.profile.classroom}};
+   return {status:200,code,profile:{grade:user.profile.grade,classroom:user.profile.classroom, ...(user.profile.school && {school:user.profile.school})}};
   },
   async revoke(session) {
    const user=await store.user(session);if(!user)return false;
@@ -28,7 +29,9 @@ export function createWidgetAccounts({db,store,origin,now=Date.now}) {
    const row=await db.prepare('SELECT users.profile FROM widget_accounts JOIN users ON users.id=widget_accounts.user_id JOIN sessions ON sessions.token=widget_accounts.session_token AND sessions.user_id=widget_accounts.user_id WHERE widget_accounts.token=? AND widget_accounts.expires>? AND sessions.expires>?').bind(hash(code),now(),now()).first();
    if(!row?.profile)return null;
    const p=JSON.parse(row.profile);
-   return /^[1-3]$/.test(p.grade)&&/^[1-4]$/.test(p.classroom)?{grade:p.grade,classroom:p.classroom}:null;
+   const school = p.school === undefined ? BSSM : schoolIdentity(p.school);
+   return school && validClass(p.grade, p.classroom, school)
+    ? { grade: p.grade, classroom: p.classroom, ...(p.school && { school }) } : null;
   },
   sameOrigin(request){return request.headers.get('origin')===origin;}
  };

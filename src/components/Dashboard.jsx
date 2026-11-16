@@ -1,3 +1,4 @@
+import { BSSM, isBssm } from "../lib/schools.js";
 import InstallApp from "./InstallApp.jsx";
 import { useEffect, useState } from "react";
 import {
@@ -117,6 +118,7 @@ export default function Dashboard({
   const active = lessonAt(now, shortSettings, currentLessons);
   const next = nextLesson(now, shortSettings, currentLessons);
   const dates = Array.from({ length: 5 }, (_, index) => addDays(week, index));
+  const showTeachers = isBssm(profile.school);
   const standard = createSchedule(null, timetable.maxPeriods);
   const isCurrentWeek = dateKey(mondayOf(now)) === dateKey(week);
   const end = dates[4];
@@ -135,7 +137,7 @@ export default function Dashboard({
           >
             <Brand />
           </button>
-          <p>부산소프트웨어마이스터고등학교</p>
+          <p>{(profile.school ?? BSSM).name}</p>
         </div>
         <div className="sidebar-body">
           <MiniCalendar
@@ -198,7 +200,7 @@ export default function Dashboard({
             <strong>
               {profile.grade}학년 {profile.classroom}반
             </strong>
-            <span>{profile.number}번 · 학교 계정</span>
+            <span>{profile.number}번 · Google 계정</span>
           </div>
           <button
             className="icon-btn"
@@ -436,7 +438,7 @@ export default function Dashboard({
                           onClick={() =>
                             onOpen("movement", { day, period, date, subject })
                           }
-                          aria-label={`${WEEKDAYS[day]} ${period + 1}교시 ${subject.name}, ${subject.teacher ? subject.teacher + " 선생님" : "교사 정보 미제공"}${move.enabled ? `, ${move.room} 이동 수업` : ""}${current ? ", 현재 수업" : ""}, 이동 교실 설정`}
+                          aria-label={`${WEEKDAYS[day]} ${period + 1}교시 ${subject.name}${showTeachers ? ", " + (subject.teacher ? subject.teacher + " 선생님" : "교사 정보 미제공") : ""}${move.enabled ? `, ${move.room} 이동 수업` : ""}${current ? ", 현재 수업" : ""}, 이동 교실 설정`}
                         >
                           <div className="lesson-card-top">
                             <strong>{subject.name}</strong>
@@ -447,16 +449,16 @@ export default function Dashboard({
                               </span>
                             )}
                           </div>
-                          <div className="lesson-card-bottom">
-                            <span>
+                          {(showTeachers || current) && <div className="lesson-card-bottom">
+                            {showTeachers && <span>
                               {subject.teacher
                                 ? `${subject.teacher} 선생님${subject.teacherUnconfirmed ? " · 확인 필요" : ""}`
                                 : "교사 정보 미제공"}
-                            </span>
+                            </span>}
                             {current && (
                               <span className="in-progress">진행 중</span>
                             )}
-                          </div>
+                          </div>}
                           {slot && (
                             <span className="short-card-time">
                               {timeLabel(slot.start)} – {timeLabel(slot.end)}

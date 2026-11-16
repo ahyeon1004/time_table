@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { dateKey } from "./schedule.js";
+import { schoolKey } from "./schools.js";
 import { normalizeTimetable } from "./timetable.js";
 
 const cache = new Map();
@@ -8,7 +9,8 @@ export function useTimetable(profile, week, enabled) {
   const weekKey = dateKey(week);
   const grade = profile?.grade,
     classroom = profile?.classroom;
-  const key = `${grade}:${classroom}:${weekKey}`;
+  const school = profile?.school;
+  const key = schoolKey(school) + ":" + `${grade}:${classroom}:${weekKey}`;
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState({ key: "", status: "idle", ...EMPTY });
   const refresh = useCallback(() => {
@@ -26,6 +28,9 @@ export function useTimetable(profile, week, enabled) {
     let active = true;
     setState({ key, status: "loading", ...EMPTY });
     const params = new URLSearchParams({ grade, classroom, week: weekKey });
+    if (school) {
+      for (const field of ["office", "code", "kind"]) params.set(field, school[field]);
+    }
     if (revision) params.set("refresh", "1");
     fetch(`/api/timetable?${params}`, {
       signal: controller.signal,
@@ -43,6 +48,7 @@ export function useTimetable(profile, week, enabled) {
         const data = normalizeTimetable(body, {
           grade,
           classroom,
+          school,
           week: new Date(`${weekKey}T00:00:00`),
         });
         if (active) {
@@ -67,7 +73,7 @@ export function useTimetable(profile, week, enabled) {
       active = false;
       controller.abort();
     };
-  }, [enabled, key, grade, classroom, weekKey, revision]);
+  }, [enabled, key, grade, classroom, weekKey, revision, school]);
   return {
     ...(enabled && state.key === key
       ? state

@@ -1,8 +1,10 @@
+import { normalizeTimetable } from "../src/lib/timetable.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createTimetableMiddleware,
   parseNeisResponse,
+  findSchools,
   queryRange,
   SCHOOL,
 } from "./neis.js";
@@ -154,4 +156,46 @@ test("잘못된 반·날짜·요청 방식은 거부한다", async () => {
     (await invoke(middleware, url.replace("grade=1", "grade=0"))).status,
     400,
   );
+});
+
+
+test("다른 학교는 학교 유형별 시간표를 요청하고 교사 보정을 적용하지 않는다", async () => {
+  const school = { office: "J10", code: "7699999", kind: "초등학교" };
+  const params = new URLSearchParams({ ...school, grade: "6", classroom: "12", week: "2026-11-16" });
+  const range = queryRange(params);
+  assert.deepEqual(range.school, school);
+  const subjects = [{
+    ATPT_OFCDC_SC_CODE: school.office, SD_SCHUL_CODE: school.code,
+    GRADE: "6", CLASS_NM: "12", ALL_TI_YMD: "20261116", PERIO: "1", ITRT_CNTNT: "수학",
+  }];
+  const value = await createTimetableMiddleware({
+    getApiKey: async () => "test",
+    fetchImpl: async (url) => {
+      const request = new URL(url);
+      assert.equal(request.pathname, "/hub/elsTimetable");
+      assert.equal(request.searchParams.get("SD_SCHUL_CODE"), school.code);
+      return Response.json({ elsTimetable: [
+        { head: [{ list_total_count: 1 }, { RESULT: { CODE: "INFO-000" } }] },
+        { row: subjects },
+      ] });
+    },
+  }).load(range);
+  assert.equal(value.rows[0].content, "수학");
+  assert.deepEqual(value.schoolIdentity, school);
+  const normalized = normalizeTimetable(value, { ...range, week: new Date(2026, 10, 16) });
+  assert.equal(normalized.byDate["2026-11-16"][0].teacher, null);
+  assert.throws(() => queryRange(new URLSearchParams({ ...Object.fromEntries(params), kind: "기타" })));
+});
+
+test("학교 검색은 나이스의 학교 코드와 학교 종류를 반환한다", async () => {
+  const schools = await findSchools("예시", "test", async (url) => {
+    const request = new URL(url);
+    assert.equal(request.pathname, "/hub/schoolInfo");
+    assert.equal(request.searchParams.get("SCHUL_NM"), "예시");
+    return Response.json({ schoolInfo: [null, { row: [
+      { ATPT_OFCDC_SC_CODE: "J10", SD_SCHUL_CODE: "7699999", SCHUL_KND_SC_NM: "초등학교", SCHUL_NM: "예시초등학교" },
+      { ATPT_OFCDC_SC_CODE: "J10", SD_SCHUL_CODE: "7699998", SCHUL_KND_SC_NM: "대학교", SCHUL_NM: "예시대학교" },
+    ] }] });
+  });
+  assert.deepEqual(schools.map(({ code, kind, name }) => [code, kind, name]), [["7699999", "초등학교", "예시초등학교"]]);
 });

@@ -4,7 +4,9 @@ import webpush from "web-push";
 import { edgeStore } from "./store.js";
 import { authConfig, handleAuth, json, jar } from "./auth.js";
 import { createPushService } from "../server/push-core.js";
-import { SCHOOL, parseNeisResponse, queryRange } from "../server/neis.js";
+import { SCHOOL, findSchools, parseNeisResponse, queryRange, TimetableError } from "../server/neis.js";
+
+import { schoolType } from "../src/lib/schools.js";
 
 const runtime = new WeakMap();
 const cache = new Map();
@@ -14,6 +16,7 @@ export function environment(env) {
   const store = edgeStore(env.DB);
   async function load(range) {
     if (!env.NEIS_API_KEY) throw new Error("NEIS not configured");
+    const school = range.school ?? SCHOOL;
     const key = JSON.stringify(range);
     const cached = cache.get(key);
     if (cached && Date.now() - cached.time < 300_000) return cached.data;
@@ -22,23 +25,24 @@ export function environment(env) {
       Type: "json",
       pIndex: "1",
       pSize: "1000",
-      ATPT_OFCDC_SC_CODE: SCHOOL.office,
-      SD_SCHUL_CODE: SCHOOL.code,
+      ATPT_OFCDC_SC_CODE: school.office,
+      SD_SCHUL_CODE: school.code,
       GRADE: range.grade,
       CLASS_NM: range.classroom,
       TI_FROM_YMD: range.from.replaceAll("-", ""),
       TI_TO_YMD: range.to.replaceAll("-", ""),
     });
     const response = await fetch(
-      "https://open.neis.go.kr/hub/hisTimetable?" + params,
+      "https://open.neis.go.kr/hub/" + schoolType(school.kind).endpoint + "?" + params,
       { signal: AbortSignal.timeout(12000) },
     );
     if (!response.ok) throw new Error("NEIS unavailable");
     const rows = parseNeisResponse(await response.json(), range);
     const data = {
       source: "NEIS",
-      school: SCHOOL.name,
       ...range,
+      school: school.name ?? null,
+      schoolIdentity: school,
       rows,
       fetchedAt: new Date().toISOString(),
       teacherAvailable: false,
@@ -172,9 +176,23 @@ export default {
           const profile=await services.widgetAccounts.resolve(request);
           if(!profile)return json(401,{error:{message:"위젯 계정을 다시 연결해 주세요."}});
           url.searchParams.set("grade",profile.grade);url.searchParams.set("classroom",profile.classroom);
+          for (const field of ["office", "code", "kind"]) {
+            if (profile.school) url.searchParams.set(field, profile.school[field]);
+            else url.searchParams.delete(field);
+          }
           request=new Request(url,request);
         }
         return await bridge(request, createWidgetMiddleware({ loadTimetable: services.load }));
+      }
+      if (url.pathname === "/api/schools") {
+        if (request.method !== "GET") return json(405, { error: { message: "GET 요청만 지원합니다." } });
+        try {
+          return json(200, { schools: await findSchools(url.searchParams.get("q"), env.NEIS_API_KEY) });
+        } catch (error) {
+          return json(error instanceof TimetableError ? error.status : 502, {
+            error: { message: error instanceof TimetableError ? error.message : "학교 검색에 실패했습니다." },
+          });
+        }
       }
       if (url.pathname === "/api/timetable") {
         if (request.method !== "GET")

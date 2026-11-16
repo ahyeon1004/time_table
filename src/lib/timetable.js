@@ -1,3 +1,4 @@
+import { isBssm, schoolKey } from "./schools.js";
 import { isUnconfirmedTeacher } from "./thirdGradeTeachers.js";
 import { dateKey, parseDate } from "./schedule.js";
 import { lessonLabel, lessonTeacher } from "./lessonLabels.js";
@@ -18,15 +19,17 @@ export function subjectColor(name) {
     hash = (Math.imul(hash, 31) + char.codePointAt(0)) >>> 0;
   return COLORS[hash % COLORS.length];
 }
-export function normalizeTimetable(payload, { grade, classroom, week }) {
+export function normalizeTimetable(payload, { grade, classroom, week, school }) {
   if (
     payload.source !== "NEIS" ||
+    (school && (!payload.schoolIdentity || schoolKey(payload.schoolIdentity) !== schoolKey(school))) ||
     payload.grade !== String(grade) ||
     payload.classroom !== String(classroom) ||
     payload.from !== dateKey(week) ||
     !Array.isArray(payload.rows)
   )
     throw new Error("요청한 학급과 시간표 정보가 일치하지 않습니다.");
+  const customize = isBssm(school);
   const byDate = {};
   let maxPeriods = 7;
   for (const row of payload.rows) {
@@ -52,11 +55,11 @@ export function normalizeTimetable(payload, { grade, classroom, week }) {
     const sourceName = names.join(" / ");
     const displayNames = [
       ...new Set(
-        names.map((subject) => lessonLabel(subject, grade, classroom)),
+        names.map((subject) => customize ? lessonLabel(subject, grade, classroom) : subject),
       ),
     ];
     const name = displayNames.join(" / ");
-    const teachers = names.map((subject) =>
+    const teachers = customize ? names.map((subject) =>
       lessonTeacher(lessonLabel(subject, grade, classroom), {
         sourceName: subject,
         grade,
@@ -64,8 +67,8 @@ export function normalizeTimetable(payload, { grade, classroom, week }) {
         day,
         period: row.period,
       }),
-    );
-    const teacher = teachers.every(Boolean)
+    ) : [];
+    const teacher = teachers.length && teachers.every(Boolean)
       ? [...new Set(teachers)].join(" / ")
       : null;
     periods[row.period - 1] = {

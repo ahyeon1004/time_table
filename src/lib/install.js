@@ -1,5 +1,8 @@
 let promptEvent = null;
-let installed = window.matchMedia("(display-mode: standalone)").matches;
+const standalone = window.matchMedia("(display-mode: standalone)");
+const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let installed = standalone.matches || navigator.standalone === true;
 let available = false;
 const listeners = new Set();
 function update() {
@@ -16,8 +19,8 @@ window.addEventListener("appinstalled", () => {
   promptEvent = null;
   update();
 });
-window.matchMedia("(display-mode: standalone)").addEventListener("change", (event) => {
-  installed = event.matches;
+standalone.addEventListener("change", (event) => {
+  installed = event.matches || navigator.standalone === true;
   update();
 });
 export const subscribeInstall = (listener) => {
@@ -25,6 +28,7 @@ export const subscribeInstall = (listener) => {
   return () => listeners.delete(listener);
 };
 export const canInstall = () => available;
+export const needsAppleInstallHelp = () => appleMobile && !installed && !available;
 export async function installApp() {
   const event = promptEvent;
   if (!event || installed) return;

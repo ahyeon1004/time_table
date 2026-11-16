@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "시간표 · BSSM",
+  "name": "시간표",
   "short_name": "시간표",
-  "description": "부산소프트웨어마이스터고등학교 학생을 위한 주간 시간표",
+  "description": "우리 학교 주간 시간표",
   "lang": "ko-KR",
   "start_url": "/",
   "scope": "/",

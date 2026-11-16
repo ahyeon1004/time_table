@@ -1,3 +1,4 @@
+import { schoolKey } from "../src/lib/schools.js";
 import { Buffer } from "node:buffer";
 import { normalizeTimetable } from "../src/lib/timetable.js";
 import {
@@ -135,7 +136,7 @@ export function duePush(device, timetable, now) {
       .join(" · ");
     return [
       {
-        key: `${device.profile.grade}-${device.profile.classroom}:${clock.key}:${period}`,
+        key: (device.profile.school ? schoolKey(device.profile.school) + ":" : "") + `${device.profile.grade}-${device.profile.classroom}:${clock.key}:${period}`,
         payload: {
           title: `${Math.ceil(difference)}분 뒤 ${lesson.name} 수업이 시작됩니다.`,
           body,
@@ -186,12 +187,13 @@ export function createPushService({
       for (const device of devices) {
         try {
           const week = mondayOf(clock.date);
-          const key = `${device.profile.grade}:${device.profile.classroom}`;
+          const key = schoolKey(device.profile.school) + ":" + `${device.profile.grade}:${device.profile.classroom}`;
           if (!classes.has(key))
             classes.set(
               key,
               Promise.resolve(
                 loadTimetable({
+                  ...(device.profile.school && { school: device.profile.school }),
                   grade: device.profile.grade,
                   classroom: device.profile.classroom,
                   from: dateKey(week),

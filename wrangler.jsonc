@@ -24,7 +24,6 @@
     "crons": ["* * * * *"],
   },
   "vars": {
-    "GOOGLE_ALLOWED_DOMAINS": "bssm.hs.kr",
   },
   "observability": {
     "enabled": false,

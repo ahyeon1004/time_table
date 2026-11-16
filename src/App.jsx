@@ -1,3 +1,4 @@
+import { schoolKey, isBssm } from "./lib/schools.js";
 import { resumeRoute } from "./lib/resumeRoute.js";
 import { useWebPush } from "./lib/useWebPush.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -6,7 +7,6 @@ import {
   AccountError,
   GoogleAuth,
   Landing,
-  Login,
   Profile,
 } from "./components/Auth.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -90,13 +90,14 @@ function TimetableApp({ user, onUser, onSignOut }) {
   const route = resumeRoute(requestedRoute, user);
   const [profile, setProfile] = useState(user?.profile ?? null);
   const profileError = false;
+  const schoolScope = isBssm(profile?.school) ? "" : ":" + schoolKey(profile.school);
   const [movements, setMovements, movementError] = usePersistent(
-    `bssm.movements.neis.v1:${user?.id ?? "guest"}`,
+    `bssm.movements.neis.v1:${user?.id ?? "guest"}${schoolScope}`,
     { recurring: {}, dates: {} },
     validMovements,
   );
   const [shortSettings, setShortSettings, shortError] = usePersistent(
-    `bssm.short.neis.v1:${user?.id ?? "guest"}`,
+    `bssm.short.neis.v1:${user?.id ?? "guest"}${schoolScope}`,
     {},
     validShortSettings,
   );
@@ -166,7 +167,7 @@ function TimetableApp({ user, onUser, onSignOut }) {
       "/signup": "회원가입",
       "/auth": "Google 인증 안내",
       "/profile": "학생 정보 등록",
-      "/account-error": "학교 계정 안내",
+      "/account-error": "Google 계정 안내",
       "/dashboard": "주간 시간표",
       "/notifications": "알림 설정",
     };
@@ -330,11 +331,9 @@ function TimetableApp({ user, onUser, onSignOut }) {
   }
   let page;
   if (!user && ["/profile", "/dashboard", "/notifications"].includes(route))
-    page = <Login navigate={navigate} />;
-  else if (route === "/login" || route === "/signup")
-    page = <Login navigate={navigate} signup={route === "/signup"} />;
-  else if (route === "/auth")
-    page = <GoogleAuth navigate={navigate} profile={profile} />;
+    page = <GoogleAuth navigate={navigate} />;
+  else if (["/login", "/signup", "/auth"].includes(route))
+    page = <GoogleAuth navigate={navigate} />;
   else if (route === "/account-error")
     page = <AccountError navigate={navigate} />;
   else if (
@@ -531,7 +530,7 @@ export default function App() {
     );
   return (
     <TimetableApp
-      key={session.user?.id ?? "guest"}
+      key={(session.user?.id ?? "guest") + ":" + schoolKey(session.user?.profile?.school)}
       user={session.user}
       onUser={(user) => setSession({ loading: false, user, error: false })}
       onSignOut={async () => {

@@ -1,3 +1,5 @@
+import { studentSchool, validStudent, TimetableError } from "../server/neis.js";
+import { validateGoogleClaims } from "../server/google-claims.js";
 import { SESSION_MAX_AGE, sessionExpires } from "../server/session.js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { randomBytes, createHash } from "node:crypto";
@@ -8,10 +10,6 @@ const random = () => randomBytes(32).toString("base64url");
 const cookie = (name, value, maxAge, secure) =>
   `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 export function authConfig(env) {
-  const domains = (env.GOOGLE_ALLOWED_DOMAINS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
   let valid = false;
   try {
     const url = new URL(env.APP_ORIGIN);
@@ -26,11 +24,9 @@ export function authConfig(env) {
       valid &&
       env.GOOGLE_CLIENT_ID &&
       env.GOOGLE_CLIENT_SECRET &&
-      domains.length &&
       env.DB
     ),
     origin: env.APP_ORIGIN,
-    domains,
     secure: env.APP_ORIGIN?.startsWith("https:"),
   };
 }
@@ -58,15 +54,7 @@ export const jar = (request) =>
       .map((x) => x.trim().split("="))
       .filter((x) => x.length === 2),
   );
-export function validProfile(value) {
-  return (
-    value &&
-    ["1", "2", "3"].includes(value.grade) &&
-    ["1", "2", "3", "4"].includes(value.classroom) &&
-    /^\d{1,3}$/.test(value.number) &&
-    Number(value.number) > 0
-  );
-}
+export const validProfile = validStudent;
 export async function bodyJSON(request, limit = 4096) {
   const reader = request.body?.getReader();
   if (!reader) throw new Error("empty");
@@ -133,7 +121,6 @@ export async function handleAuth(
       code_challenge_method: "S256",
       prompt: "select_account",
     });
-    if (config.domains.length === 1) params.set("hd", config.domains[0]);
     return redirect("https://accounts.google.com/o/oauth2/v2/auth?" + params, [
       cookie("bssm_oauth", token, 600, config.secure),
     ]);
@@ -179,17 +166,7 @@ export async function handleAuth(
               algorithms: ["RS256"],
             })
           ).payload;
-      const domain =
-        typeof claims.email === "string" ? claims.email.split("@") : [];
-      if (
-        !claims.sub ||
-        claims.email_verified !== true ||
-        claims.nonce !== attempt.nonce ||
-        domain.length !== 2 ||
-        !config.domains.includes(domain[1].toLowerCase()) ||
-        typeof claims.hd !== "string" ||
-        !config.domains.includes(claims.hd.toLowerCase())
-      )
+      if (!validateGoogleClaims(claims, attempt.nonce))
         return redirect("/#/account-error", cleared);
       const token = random();
       await store.login(
@@ -238,7 +215,16 @@ export async function handleAuth(
     }
     if (!validProfile(profile))
       return json(400, { error: { message: "학년·반·번호를 확인해 주세요." } });
+    let school;
+    try {
+      school = await studentSchool(profile, env.NEIS_API_KEY);
+    } catch (error) {
+      return json(error instanceof TimetableError ? error.status : 502, {
+        error: { message: "학교 정보를 확인하지 못했습니다." },
+      });
+    }
     await store.profile(user.id, {
+      ...(school && { school }),
       grade: profile.grade,
       classroom: profile.classroom,
       number: String(Number(profile.number)),
