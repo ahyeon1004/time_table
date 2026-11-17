@@ -15,6 +15,7 @@ export function WidgetLink() {
  return <section className="notification-controls device-notification-controls" aria-labelledby="widget-link-title">
   <h2 id="widget-link-title">맥 시간표 위젯</h2>
   <p>Google 계정에 등록한 학교와 학년·반을 위젯과 연결해요.</p>
+  <p><a className="text-action" href="https://github.com/ahyeon1004/time_table/releases/tag/macos-widget-v1.0.5-beta.1" target="_blank" rel="noopener noreferrer">맥 위젯 설치 · GitHub ↗</a></p>
   <p className="notification-permission-help">코드를 만든 뒤 맥 위젯 우클릭 → 위젯 편집 → 위젯 연결 코드에 붙여 넣으세요. 이후 학년·반 변경은 자동 반영돼요. 로그아웃하면 연결이 해제돼요.</p>
   <div className="device-notification-actions">
    <Button disabled={busy} onClick={()=>change('POST')}>{busy?'처리 중…':'위젯 연결 코드 만들기'}</Button>
