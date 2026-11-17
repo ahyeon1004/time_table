@@ -2245,3 +2245,92 @@ button[disabled] {
   font-size: 11px;
   color: #596b84;
 }
+
+@media (min-width: 900px) and (max-width: 1400px) and (orientation: landscape) and (pointer: coarse) {
+  .dashboard {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .sidebar {
+    position: sticky;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #edf0f5;
+    border-bottom: 0;
+  }
+  .sidebar-top {
+    padding: 18px 16px 12px;
+  }
+  .sidebar-body {
+    display: block;
+    padding: 0 12px 12px;
+    overflow-y: auto;
+  }
+  .sidebar-profile {
+    padding: 10px 14px;
+    min-height: 60px;
+    border-top: 1px solid #edf0f5;
+  }
+  .sidebar-nav {
+    display: flex;
+    gap: 2px;
+  }
+  .sidebar-nav button,
+  .week-navigation button,
+  .today-button,
+  .sidebar-profile .icon-btn {
+    min-height: 44px;
+  }
+  .sidebar-nav button {
+    font-size: 11px;
+    white-space: normal;
+  }
+  .sidebar-nav button > svg {
+    flex-shrink: 0;
+  }
+  .calendar-grid button {
+    height: 29px;
+    font-size: 10px;
+  }
+  .mini-calendar header {
+    margin-bottom: 6px;
+  }
+  .mini-calendar .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .sidebar-separator {
+    margin: 14px 2px 10px;
+  }
+  .timetable-main {
+    padding: 18px 20px;
+  }
+  .dashboard-header {
+    margin-bottom: 12px;
+  }
+  .timetable {
+    margin-top: 10px;
+  }
+  .timetable-head,
+  .timetable-row {
+    grid-template-columns: 42px repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .lunch-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 6px;
+  }
+  .period-group + .period-group {
+    margin-top: 6px;
+  }
+  .lesson-card,
+  .lesson-empty {
+    height: clamp(48px, 6.5dvh, 68px);
+  }
+  .lesson-card-top > strong {
+    font-size: 13px;
+  }
+  .lesson-card-bottom > span:first-child {
+    font-size: 10px;
+  }
+}
