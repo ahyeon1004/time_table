@@ -4,7 +4,9 @@ import { environment as services } from "../edge/worker.js";
 import { authorizedScheduler, createScheduler } from "../server/scheduler.js";
 import { postgresDatabase } from "../server/postgres.js";
 
-let configured, scheduler;
+const currentOrigin = "https://ttimettable.vercel.app";
+const legacyOrigin = "https://bssm-timetable.vercel.app";
+let configured, legacyEnvironment, scheduler;
 function schedulerFor(env) {
   scheduler ??= createScheduler({ db: env.DB, dispatch: () => services(env).push.tick() });
   return scheduler;
@@ -18,15 +20,20 @@ function environment() {
   return configured;
 }
 
+function environmentForOrigin(env, origin) {
+  if (env.APP_ORIGIN !== currentOrigin || origin !== legacyOrigin) return env;
+  legacyEnvironment ??= { ...env, APP_ORIGIN: legacyOrigin };
+  return legacyEnvironment;
+}
+
 export default {
   async fetch(request) {
-    // Reuse the same auth, timetable and push routes on both deployment targets.
-    if (new URL(request.url).pathname === "/api/health")
+    const { origin, pathname: path } = new URL(request.url);
+    if (path === "/api/health")
       return Response.json({ ok: true, runtime: "vercel" }, {
         headers: { "Cache-Control": "no-store" },
       });
     const env = environment();
-    const path = new URL(request.url).pathname;
     if (["/api/push/dispatch", "/api/push/scheduler"].includes(path)) {
       if (!authorizedScheduler(request, env.CRON_SECRET))
         return new Response("Unauthorized", { status: 401 });
@@ -43,7 +50,7 @@ export default {
         return Response.json({ error: "일정 알림을 처리하지 못했습니다." }, { status: 503 });
       }
     }
-    const response = await worker.fetch(request, env);
+    const response = await worker.fetch(request, environmentForOrigin(env, origin));
     if (path === "/api/push/config" && response.ok) {
       const status = env.DB ? await schedulerFor(env).status() : null;
       return Response.json({ ...await response.json(),
